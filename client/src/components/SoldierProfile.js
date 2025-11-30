@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../utils/api';
-import { EXCEPTION_CODES, getExceptionCodesList } from '../utils/exceptionCodes';
+import { getExceptionCodesList } from '../utils/exceptionCodes';
 import './SoldierProfile.css';
 
 const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
@@ -23,6 +23,7 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
       setDaysSinceDuty(soldier.days_since_last_duty || 0);
       fetchAppointments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soldier]);
 
   const fetchAppointments = async () => {
@@ -117,6 +118,7 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
     });
   };
 
+  // eslint-disable-next-line no-unused-vars
   const isDateInRange = (date, startDate, endDate) => {
     const checkDate = new Date(date);
     const start = new Date(startDate);

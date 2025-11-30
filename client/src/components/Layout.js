@@ -6,7 +6,6 @@ import './Layout.css';
 const Layout = ({ children }) => {
   const { user, signOut } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleSignOut = async () => {
     const { error } = await signOut();

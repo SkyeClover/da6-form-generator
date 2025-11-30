@@ -24,23 +24,35 @@ Use this checklist when deploying to Vercel for the first time.
 
 ## Environment Variables
 
+> 📖 **Need help finding these values?** See [FINDING_SUPABASE_CREDENTIALS.md](./FINDING_SUPABASE_CREDENTIALS.md) for step-by-step instructions!
+
 Add these in Vercel Dashboard → Settings → Environment Variables:
 
 ### Server Variables:
 - [ ] `SUPABASE_URL` = Your Supabase project URL
+  - Find it: Supabase Dashboard → Settings → API → Project URL
 - [ ] `SUPABASE_SERVICE_ROLE_KEY` = Your Supabase service role key
+  - Find it: Supabase Dashboard → Settings → API → service_role key (⚠️ Secret!)
 - [ ] `CLIENT_URL` = Your Vercel URL (e.g., `https://your-app.vercel.app`)
+  - Find it: Vercel Dashboard → Your Project → Copy the URL at the top
 
 ### Client Variables:
 - [ ] `REACT_APP_SUPABASE_URL` = Your Supabase project URL
+  - Same as SUPABASE_URL above
 - [ ] `REACT_APP_SUPABASE_ANON_KEY` = Your Supabase anon/public key
+  - Find it: Supabase Dashboard → Settings → API → anon public key
 
 ## Supabase Configuration
 
+> 📖 **Detailed instructions:** See [FINDING_SUPABASE_CREDENTIALS.md](./FINDING_SUPABASE_CREDENTIALS.md) section "Step 3"
+
+- [ ] Go to Supabase Dashboard → Authentication → URL Configuration
 - [ ] Add Vercel URL to Supabase Auth → URL Configuration:
-  - [ ] Redirect URLs: `https://your-app.vercel.app` and `https://your-app.vercel.app/**`
   - [ ] Site URL: `https://your-app.vercel.app`
-  - [ ] Add preview URL pattern: `https://your-app-*.vercel.app`
+  - [ ] Redirect URLs: Add these (one per line):
+    - `https://your-app.vercel.app`
+    - `https://your-app.vercel.app/**`
+    - `https://your-app-*.vercel.app`
 
 ## Post-Deployment
 

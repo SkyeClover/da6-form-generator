@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
 import { EXCEPTION_CODES, getExceptionCodesList } from '../utils/exceptionCodes';
-import { sortSoldiersByRank, getAllRanks, getRankName, getRanksInRange, isLowerEnlisted, isNCORank, isWarrantOfficerRank, isOfficerRank, getRankOrder } from '../utils/rankOrder';
+import { sortSoldiersByRank, getRanksInRange, isLowerEnlisted, isNCORank, isWarrantOfficerRank, isOfficerRank, getRankOrder } from '../utils/rankOrder';
 import { DUTY_TEMPLATES, getDutyTemplate } from '../utils/dutyTemplates';
 import { getFederalHolidaysInRange } from '../utils/federalHolidays';
 import Layout from './Layout';
@@ -55,6 +55,7 @@ const DA6Form = () => {
     }
     fetchSoldiers();
     fetchOtherForms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -62,6 +63,7 @@ const DA6Form = () => {
     if (formData.period_start && formData.period_end) {
       fetchHolidays();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.period_start, formData.period_end]);
 
   const fetchForm = async () => {
@@ -251,7 +253,6 @@ const DA6Form = () => {
     }
     
     const isWeekendDay = isWeekend(date);
-    const isHolidayDay = isHoliday(date);
     
     // If skipping weekends and it's a weekend, don't include
     if (formData.duty_config.skip_weekends && isWeekendDay && !formData.duty_config.separate_weekend_cycle) {
@@ -264,6 +265,7 @@ const DA6Form = () => {
     return true;
   };
 
+  // eslint-disable-next-line no-unused-vars
   const getDateType = (date) => {
     const isWeekendDay = isWeekend(date);
     const isHolidayDay = isHoliday(date);
@@ -718,7 +720,6 @@ const DA6Form = () => {
     try {
       const assignments = generateAssignments();
       const periodEnd = new Date(formData.period_end);
-      const periodStart = new Date(formData.period_start);
       const selectedSoldiersList = Array.from(selectedSoldiers);
       
       // Count how many details were made during this period (for soldiers who weren't assigned)
@@ -994,7 +995,6 @@ const DA6Form = () => {
     
     soldiersToProcess.forEach(soldier => {
       if (!soldier) return;
-      const appointments = getAppointmentsForSoldier(soldier.id);
       
       dates.forEach(date => {
         // Only check dates that should be included (respects weekend/holiday settings)

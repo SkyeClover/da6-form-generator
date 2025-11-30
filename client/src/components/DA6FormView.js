@@ -18,6 +18,7 @@ const DA6FormView = () => {
   useEffect(() => {
     fetchForm();
     fetchSoldiers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -152,6 +153,7 @@ const DA6FormView = () => {
     });
   };
 
+  // eslint-disable-next-line no-unused-vars
   const getDateType = (date) => {
     const isWeekendDay = isWeekend(date);
     const isHolidayDay = isHoliday(date);
@@ -1308,7 +1310,6 @@ const DA6FormView = () => {
     // Track through dates up to current date
     for (let i = 0; i <= dateIndex; i++) {
       const checkDate = dates[i];
-      const checkDateStr = checkDate.toISOString().split('T')[0];
       
       if (!shouldIncludeDate(checkDate)) continue;
       
@@ -1463,6 +1464,7 @@ const DA6FormView = () => {
     return codes[code] || code;
   };
 
+  // eslint-disable-next-line no-unused-vars
   const getSoldierName = (soldierId) => {
     const soldier = soldiers.find(s => s.id === soldierId);
     if (!soldier) return 'Unknown';
@@ -1657,7 +1659,6 @@ const DA6FormView = () => {
                       {dates.map((date, dateIdx) => {
                         const isWeekendDay = isWeekend(date);
                         const isHolidayDay = isHoliday(date);
-                        const dateStr = date.toISOString().split('T')[0];
                         
                         // Only show if date should be included
                         if (!shouldIncludeDate(date)) {

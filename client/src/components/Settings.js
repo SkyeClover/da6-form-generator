@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../utils/api';
-import { getFederalHolidays, getFederalHolidaysInRange } from '../utils/federalHolidays';
+import { getFederalHolidays } from '../utils/federalHolidays';
 import Layout from './Layout';
 import './Settings.css';
 

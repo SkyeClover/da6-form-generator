@@ -7,6 +7,7 @@ DECLARE
     v_user_id UUID;
     v_soldier_ids UUID[];
     v_soldier_id UUID;
+    v_soldier_count INTEGER;
     v_current_date DATE := CURRENT_DATE;
     v_appointment_date DATE;
     -- Soldier ID variables for appointments
@@ -150,8 +151,8 @@ BEGIN
                 (v_user_id, 'RAMIREZ', 'RAMIREZ', 'X', 'COL', '11A', '1234567954', '1st Battalion, 123rd Infantry', '555-0165', 'ramirez.ramirez@army.mil', 'Regiment Commander', 0);
         
         -- Get count of inserted soldiers
-        SELECT COUNT(*) INTO v_soldier_id FROM soldiers WHERE user_id = v_user_id;
-        RAISE NOTICE 'Inserted % soldiers', v_soldier_id;
+        SELECT COUNT(*) INTO v_soldier_count FROM soldiers WHERE user_id = v_user_id;
+        RAISE NOTICE 'Inserted % soldiers', v_soldier_count;
         
         -- Step 4: Insert realistic appointments
         -- Get soldier IDs using EDI numbers for unique identification (more reliable than names)
