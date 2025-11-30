@@ -30,3 +30,13 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Temporary documentation/notes (keep locally but don't track)
+IMPLEMENTATION_SUMMARY.md
+MIGRATION_GUIDE.md
+NEXT_STEPS.md
+OAUTH_FIX.md
+ENABLE_GOOGLE_OAUTH.md
+QUICK_SEED_INSTRUCTIONS.md
+SEED_DATA_INSTRUCTIONS.md
+QUICK_SETUP.md
