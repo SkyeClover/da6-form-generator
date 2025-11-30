@@ -1,86 +1,13 @@
-.App {
+.loading-container {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-}
-
-.App-header {
+  align-items: center;
+  justify-content: center;
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+}
+
+.loading-spinner {
   color: white;
-  padding: 2rem;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.App-header h1 {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.subtitle {
   font-size: 1.2rem;
-  opacity: 0.9;
-  margin-top: 0.5rem;
-}
-
-.status-indicator {
-  margin-top: 1rem;
-}
-
-.status {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status.connected {
-  background-color: #4caf50;
-  color: white;
-}
-
-.status.disconnected {
-  background-color: #f44336;
-  color: white;
-}
-
-.status.checking {
-  background-color: #ff9800;
-  color: white;
-}
-
-.App-main {
-  flex: 1;
-  max-width: 1200px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.welcome-section {
-  background: white;
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.welcome-section h2 {
-  color: #1e3c72;
-  margin-bottom: 1rem;
-}
-
-.welcome-section p {
-  color: #666;
-  line-height: 1.6;
-  margin-bottom: 1rem;
-}
-
-.coming-soon {
-  font-style: italic;
-  color: #999;
-  margin-top: 2rem;
 }
 

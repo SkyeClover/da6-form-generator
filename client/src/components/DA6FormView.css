@@ -1,0 +1,361 @@
+.da6-form-view {
+  padding: 2rem;
+  max-width: 100%;
+  margin: 0 auto;
+  background: white;
+  min-height: calc(100vh - 80px);
+}
+
+.form-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 3px solid #1e3c72;
+}
+
+.form-view-header h1 {
+  color: #1e3c72;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.form-actions-header {
+  display: flex;
+  gap: 1rem;
+}
+
+.form-actions-header button.active {
+  background: #1e3c72;
+  color: white;
+  border-color: #1e3c72;
+}
+
+.roster-info {
+  background: #f5f5f5;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-row span {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.roster-container {
+  overflow-x: auto;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+}
+
+.roster-table-wrapper {
+  min-width: 100%;
+}
+
+.roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  background: white;
+}
+
+.roster-table thead {
+  background: #1e3c72;
+  color: white;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.roster-table th {
+  padding: 0.5rem;
+  text-align: center;
+  font-weight: 600;
+  border: 1px solid #2a5298;
+  min-width: 40px;
+}
+
+.grade-col {
+  width: 80px;
+  background: #2a5298;
+}
+
+.name-col {
+  width: 200px;
+  text-align: left !important;
+  background: #2a5298;
+}
+
+.days-col {
+  width: 120px;
+  text-align: center !important;
+  background: #2a5298;
+}
+
+.date-col {
+  width: 35px;
+  padding: 0.25rem !important;
+}
+
+.date-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.month-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.day-number {
+  font-size: 0.85rem;
+}
+
+.roster-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.roster-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.grade-cell {
+  background: #e8eaf6;
+  font-weight: 600;
+  text-align: center;
+  vertical-align: middle;
+  border-right: 2px solid #ddd;
+  color: #1e3c72;
+}
+
+.name-cell {
+  background: #f5f5f5;
+  font-weight: 500;
+  padding: 0.5rem;
+  border-right: 2px solid #ddd;
+  white-space: nowrap;
+}
+
+.days-cell {
+  background: #f5f5f5;
+  text-align: center;
+  padding: 0.5rem;
+  border-right: 2px solid #ddd;
+  vertical-align: middle;
+}
+
+.days-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.days-badge.low {
+  background: #d4edda;
+  color: #155724;
+}
+
+.days-badge.medium {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.days-badge.high {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.assignment-cell {
+  text-align: center;
+  padding: 0.25rem;
+  border: 1px solid #e0e0e0;
+  min-width: 35px;
+  height: 35px;
+  vertical-align: middle;
+  position: relative;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.assignment-cell.weekend {
+  background: #fff9e6;
+}
+
+.assignment-cell.assigned {
+  background: #c5cae9;
+  font-weight: 600;
+}
+
+.assignment-cell.exception {
+  background: #ffccbc;
+  font-weight: 600;
+  color: #d84315;
+}
+
+.assignment-mark {
+  display: inline-block;
+  color: #1e3c72;
+  font-size: 0.9rem;
+}
+
+.assignment-cell.exception .assignment-mark {
+  color: #d84315;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 2px solid #ddd;
+}
+
+.status-badge-large {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge-large.status-draft {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-badge-large.status-completed {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-badge-large.status-submitted {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.form-meta {
+  display: flex;
+  gap: 1.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.loading,
+.error {
+  text-align: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.error {
+  color: #d32f2f;
+}
+
+/* Compact List View */
+.compact-list-container {
+  overflow-x: auto;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 2rem;
+}
+
+.compact-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.compact-list-table thead {
+  background: #1e3c72;
+  color: white;
+}
+
+.compact-list-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid #2a5298;
+}
+
+.compact-list-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.compact-list-table tbody tr:hover {
+  background: #f9f9f9;
+}
+
+.compact-list-table td {
+  padding: 0.75rem 1rem;
+  border: 1px solid #e0e0e0;
+}
+
+.compact-date {
+  font-weight: 500;
+  color: #1e3c72;
+  white-space: nowrap;
+}
+
+.compact-duty {
+  font-weight: 500;
+  color: #333;
+}
+
+.compact-soldiers {
+  color: #555;
+}
+
+/* Print styles */
+@media print {
+  .form-view-header,
+  .form-actions-header,
+  .form-footer {
+    display: none;
+  }
+
+  .roster-container,
+  .compact-list-container {
+    border: none;
+    overflow: visible;
+  }
+
+  .roster-table {
+    font-size: 0.75rem;
+  }
+
+  .assignment-cell {
+    height: 30px;
+  }
+
+  .compact-list-table {
+    font-size: 0.8rem;
+  }
+
+  .compact-list-table th,
+  .compact-list-table td {
+    padding: 0.5rem;
+  }
+
+  .compact-list-table tbody tr {
+    page-break-inside: avoid;
+  }
+}
+

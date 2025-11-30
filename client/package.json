@@ -7,7 +7,10 @@
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
     "react-router-dom": "^6.20.0",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "@supabase/supabase-js": "^2.38.5",
+    "@supabase/auth-ui-react": "^0.4.6",
+    "@supabase/auth-ui-shared": "^0.1.8"
   },
   "scripts": {
     "start": "react-scripts start",

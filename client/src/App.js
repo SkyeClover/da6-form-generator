@@ -1,41 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { isSupabaseConfigured } from './lib/supabase';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import Soldiers from './components/Soldiers';
+import FormsList from './components/FormsList';
+import DA6Form from './components/DA6Form';
+import DA6FormView from './components/DA6FormView';
+import Settings from './components/Settings';
+import SetupRequired from './components/SetupRequired';
 import './App.css';
-import axios from 'axios';
+
+// Protected Route component
+const ProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">Loading...</div>
+      </div>
+    );
+  }
+
+  return user ? children : <Navigate to="/login" />;
+};
+
+// Public Route component (redirects to dashboard if already logged in)
+const PublicRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">Loading...</div>
+      </div>
+    );
+  }
+
+  return user ? <Navigate to="/dashboard" /> : children;
+};
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/soldiers" element={<ProtectedRoute><Soldiers /></ProtectedRoute>} />
+      <Route path="/forms" element={<ProtectedRoute><FormsList /></ProtectedRoute>} />
+      <Route path="/forms/new" element={<ProtectedRoute><DA6Form /></ProtectedRoute>} />
+      <Route path="/forms/:id/view" element={<ProtectedRoute><DA6FormView /></ProtectedRoute>} />
+      <Route path="/forms/:id" element={<ProtectedRoute><DA6Form /></ProtectedRoute>} />
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
 
 function App() {
-  const [apiStatus, setApiStatus] = useState('checking...');
-
-  useEffect(() => {
-    // Check API health
-    axios.get('/api/health')
-      .then(response => {
-        setApiStatus('connected');
-      })
-      .catch(error => {
-        setApiStatus('disconnected');
-        console.error('API connection error:', error);
-      });
-  }, []);
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured()) {
+    return <SetupRequired />;
+  }
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>DA6 Form Generator</h1>
-        <p className="subtitle">Army Duty Roster Form Generator</p>
-        <div className="status-indicator">
-          <span className={`status ${apiStatus}`}>
-            API: {apiStatus}
-          </span>
-        </div>
-      </header>
-      <main className="App-main">
-        <div className="welcome-section">
-          <h2>Welcome</h2>
-          <p>This application helps you generate Army DA6 forms quickly and accurately.</p>
-          <p className="coming-soon">Form generation interface coming soon...</p>
-        </div>
-      </main>
-    </div>
+    <AuthProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
   );
 }
 
