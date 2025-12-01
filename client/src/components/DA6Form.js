@@ -309,7 +309,7 @@ const DA6Form = () => {
     if (!soldiersList || soldiersList.length === 0) return;
     
     const appointmentsMap = { ...soldierAppointments };
-    let hasAuthError = false;
+    const authErrorRef = { value: false };
     
     // Batch requests with delays to prevent rate limiting
     for (let i = 0; i < soldiersList.length; i++) {
@@ -329,7 +329,7 @@ const DA6Form = () => {
       } catch (error) {
         // If it's an auth error, stop fetching and let the interceptor handle it
         if (error.response?.status === 401) {
-          hasAuthError = true;
+          authErrorRef.value = true;
           break;
         }
         console.error(`Error fetching appointments for ${soldier.id}:`, error);
@@ -338,7 +338,7 @@ const DA6Form = () => {
     }
     
     // Only update state if we didn't hit an auth error
-    if (!hasAuthError) {
+    if (!authErrorRef.value) {
       setSoldierAppointments(appointmentsMap);
     }
   };
