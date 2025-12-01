@@ -94,6 +94,8 @@ const DA6Form = () => {
 
   // Automatically populate exceptions from cross-roster conflicts
   // This runs whenever relevant data changes to ensure exceptions are always up-to-date
+  const selectedRostersForCheckKey = Array.from(selectedRostersForCheck).sort().join(',');
+  
   useEffect(() => {
     if (
       crossRosterCheckEnabled &&
@@ -110,13 +112,12 @@ const DA6Form = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     crossRosterCheckEnabled,
-    selectedRostersForCheck,
+    selectedRostersForCheck.size,
+    selectedRostersForCheckKey,
     otherForms.length,
     formData.period_start,
     formData.period_end,
-    selectedSoldiers.size,
-    // Include actual roster IDs in dependency to trigger when rosters change
-    JSON.stringify(Array.from(selectedRostersForCheck).sort())
+    selectedSoldiers.size
   ]);
 
   const fetchForm = async () => {
@@ -1219,8 +1220,10 @@ const DA6Form = () => {
           const otherFormAssignmentsMap = generateAssignmentsForOtherForm(otherForm);
           const otherFormDutyType = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
           
-          // Check each selected soldier
-          Array.from(selectedSoldiers).forEach(soldierId => {
+          // Check each selected soldier - use for loop instead of forEach to avoid closure issues
+          const selectedSoldiersArray = Array.from(selectedSoldiers);
+          for (let i = 0; i < selectedSoldiersArray.length; i++) {
+            const soldierId = selectedSoldiersArray[i];
             // Check if soldier is assigned duty on this date in the other roster
             const hasDutyAssignment = otherFormAssignmentsMap[soldierId]?.[dateStr]?.duty === true;
             
@@ -1255,7 +1258,7 @@ const DA6Form = () => {
                 }
               }
             }
-          });
+          }
         }
         
         current.setDate(current.getDate() + 1);
