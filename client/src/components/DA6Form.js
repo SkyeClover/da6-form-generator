@@ -1073,10 +1073,10 @@ const DA6Form = () => {
         // Update in batches to prevent rate limiting
         const BATCH_SIZE = 5;
         const BATCH_DELAY = 200;
-        let hasAuthError = false;
+        const authErrorRef = { value: false };
         
         for (let i = 0; i < allSoldiers.length; i += BATCH_SIZE) {
-          if (hasAuthError) break;
+          if (authErrorRef.value) break;
           
           const batch = allSoldiers.slice(i, i + BATCH_SIZE);
           const batchPromises = batch.map(soldier =>
@@ -1084,7 +1084,7 @@ const DA6Form = () => {
               days_since_last_duty: 0
             }).catch(err => {
               if (err.response?.status === 401) {
-                hasAuthError = true;
+                authErrorRef.value = true;
                 return null;
               }
               console.error(`Error updating soldier ${soldier.id}:`, err);
@@ -1094,12 +1094,12 @@ const DA6Form = () => {
           
           await Promise.all(batchPromises);
           
-          if (i + BATCH_SIZE < allSoldiers.length && !hasAuthError) {
+          if (i + BATCH_SIZE < allSoldiers.length && !authErrorRef.value) {
             await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
           }
         }
         
-        if (!hasAuthError) {
+        if (!authErrorRef.value) {
           await fetchSoldiers();
           console.log('[Recalculate] Reset all soldiers to 0 days since last duty.');
         }
