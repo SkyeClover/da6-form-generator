@@ -53,11 +53,40 @@ const DA6Form = () => {
   useEffect(() => {
     if (id) {
       fetchForm();
+    } else {
+      fetchSoldiers();
+      fetchHolidays();
     }
-    fetchSoldiers();
     fetchOtherForms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  
+  // Fetch appointments for selected soldiers when they change
+  useEffect(() => {
+    if (selectedSoldiers.size > 0 && formData.period_start && formData.period_end) {
+      const selectedSoldiersList = Array.from(selectedSoldiers)
+        .map(id => soldiers.find(s => s.id === id))
+        .filter(Boolean);
+      
+      // Only fetch appointments for soldiers we don't have yet
+      const soldiersToFetch = selectedSoldiersList.filter(
+        s => !soldierAppointments[s.id]
+      );
+      
+      if (soldiersToFetch.length > 0) {
+        fetchAllAppointments(soldiersToFetch);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSoldiers, formData.period_start, formData.period_end]);
+  
+  // Fetch appointments when a profile is opened
+  useEffect(() => {
+    if (selectedProfileSoldier && !soldierAppointments[selectedProfileSoldier.id]) {
+      fetchSoldierAppointments(selectedProfileSoldier.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProfileSoldier]);
   
   // Recalculate days since last duty when component mounts to ensure accuracy
   // This handles cases where rosters were deleted or edited elsewhere
@@ -202,10 +231,14 @@ const DA6Form = () => {
       const { data } = await apiClient.get('/soldiers');
       const sortedSoldiers = sortSoldiersByRank(data.soldiers || []);
       setSoldiers(sortedSoldiers);
-      // Fetch appointments for all soldiers
-      fetchAllAppointments(sortedSoldiers);
+      // Don't fetch appointments for all soldiers - fetch lazily when needed
+      // This prevents rate limiting issues
     } catch (error) {
       console.error('Error fetching soldiers:', error);
+      // If it's an auth error, the interceptor will handle it
+      if (error.response?.status === 401) {
+        return; // Don't continue if unauthorized
+      }
     }
   };
 
@@ -269,17 +302,65 @@ const DA6Form = () => {
   };
 
   const fetchAllAppointments = async (soldiersList) => {
-    const appointmentsMap = {};
-    for (const soldier of soldiersList) {
+    if (!soldiersList || soldiersList.length === 0) return;
+    
+    const appointmentsMap = { ...soldierAppointments };
+    let hasAuthError = false;
+    
+    // Batch requests with delays to prevent rate limiting
+    for (let i = 0; i < soldiersList.length; i++) {
+      const soldier = soldiersList[i];
+      
+      // Skip if we already have appointments for this soldier
+      if (appointmentsMap[soldier.id]) continue;
+      
       try {
         const { data } = await apiClient.get(`/soldiers/${soldier.id}/appointments`);
         appointmentsMap[soldier.id] = data.appointments || [];
+        
+        // Add a small delay between requests to prevent rate limiting (every 5 requests)
+        if ((i + 1) % 5 === 0 && i < soldiersList.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
       } catch (error) {
+        // If it's an auth error, stop fetching and let the interceptor handle it
+        if (error.response?.status === 401) {
+          hasAuthError = true;
+          break;
+        }
         console.error(`Error fetching appointments for ${soldier.id}:`, error);
         appointmentsMap[soldier.id] = [];
       }
     }
-    setSoldierAppointments(appointmentsMap);
+    
+    // Only update state if we didn't hit an auth error
+    if (!hasAuthError) {
+      setSoldierAppointments(appointmentsMap);
+    }
+  };
+  
+  // Fetch appointments for a single soldier (lazy loading)
+  const fetchSoldierAppointments = async (soldierId) => {
+    // Skip if we already have appointments for this soldier
+    if (soldierAppointments[soldierId]) return;
+    
+    try {
+      const { data } = await apiClient.get(`/soldiers/${soldierId}/appointments`);
+      setSoldierAppointments(prev => ({
+        ...prev,
+        [soldierId]: data.appointments || []
+      }));
+    } catch (error) {
+      // If it's an auth error, the interceptor will handle it
+      if (error.response?.status === 401) {
+        return;
+      }
+      console.error(`Error fetching appointments for ${soldierId}:`, error);
+      setSoldierAppointments(prev => ({
+        ...prev,
+        [soldierId]: []
+      }));
+    }
   };
 
   const getAppointmentsForSoldier = (soldierId) => {
@@ -1143,7 +1224,7 @@ const DA6Form = () => {
     setSelectedSoldiers(newSelected);
   };
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = async () => {
     if (selectedSoldiers.size === soldiers.length) {
       // Deselect all
       setSelectedSoldiers(new Set());
@@ -1152,6 +1233,15 @@ const DA6Form = () => {
       // Select all
       const allSelected = new Set(soldiers.map(s => s.id));
       setSelectedSoldiers(allSelected);
+      
+      // Fetch appointments for all soldiers (with batching to prevent rate limiting)
+      const soldiersToFetch = soldiers.filter(
+        s => !soldierAppointments[s.id]
+      );
+      if (soldiersToFetch.length > 0) {
+        await fetchAllAppointments(soldiersToFetch);
+      }
+      
       // Auto-populate exceptions from appointments
       if (formData.period_start && formData.period_end) {
         autoPopulateExceptionsFromAppointments(null, allSelected);
@@ -1274,9 +1364,17 @@ const DA6Form = () => {
     });
   };
 
-  const handleProfileUpdate = () => {
-    // Refresh appointments when profile is updated
-    fetchAllAppointments(soldiers);
+  const handleProfileUpdate = (soldierId) => {
+    // Refresh appointments for the specific soldier when profile is updated
+    if (soldierId) {
+      fetchSoldierAppointments(soldierId);
+    } else if (selectedSoldiers.size > 0) {
+      // If no specific soldier, refresh for selected soldiers only
+      const selectedSoldiersList = Array.from(selectedSoldiers)
+        .map(id => soldiers.find(s => s.id === id))
+        .filter(Boolean);
+      fetchAllAppointments(selectedSoldiersList);
+    }
   };
 
   const addException = (soldierId, date, exceptionCode) => {

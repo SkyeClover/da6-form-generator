@@ -30,5 +30,22 @@ apiClient.interceptors.request.use(
   }
 );
 
+// Add response interceptor to handle auth errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // Handle 401 Unauthorized errors
+    if (error.response?.status === 401) {
+      // Check if we're already on the login page to avoid redirect loops
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
+        // Sign out and redirect to login
+        await supabase.auth.signOut();
+        window.location.href = '/login';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default apiClient;
 
