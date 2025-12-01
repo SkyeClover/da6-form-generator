@@ -88,30 +88,30 @@ const DA6Form = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProfileSoldier]);
   
-  // Recalculate days since last duty when component mounts to ensure accuracy
-  // This handles cases where rosters were deleted or edited elsewhere
-  useEffect(() => {
-    // Only recalculate if we have soldiers loaded and there are completed forms
-    if (soldiers.length > 0) {
-      const triggerRecalculation = async () => {
-        try {
-          const { data: formsData } = await apiClient.get('/da6-forms');
-          const completedForms = (formsData.forms || []).filter(f => f.status === 'completed');
-          if (completedForms.length > 0) {
-            // Recalculate to ensure accuracy after any roster changes
-            await recalculateAllDaysSinceDuty();
-          }
-        } catch (error) {
-          console.error('Error triggering recalculation on mount:', error);
-        }
-      };
-      
-      // Use a delay to ensure everything is loaded
-      const timeoutId = setTimeout(triggerRecalculation, 2000);
-      return () => clearTimeout(timeoutId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [soldiers.length]); // Only run when soldiers are loaded
+  // Disable auto-recalculation on mount to prevent rate limiting
+  // Recalculation will happen when forms are saved/deleted instead
+  // useEffect(() => {
+  //   // Only recalculate if we have soldiers loaded and there are completed forms
+  //   if (soldiers.length > 0) {
+  //     const triggerRecalculation = async () => {
+  //       try {
+  //         const { data: formsData } = await apiClient.get('/da6-forms');
+  //         const completedForms = (formsData.forms || []).filter(f => f.status === 'completed');
+  //         if (completedForms.length > 0) {
+  //           // Recalculate to ensure accuracy after any roster changes
+  //           await recalculateAllDaysSinceDuty();
+  //         }
+  //       } catch (error) {
+  //         console.error('Error triggering recalculation on mount:', error);
+  //       }
+  //     };
+  //     
+  //     // Use a delay to ensure everything is loaded
+  //     const timeoutId = setTimeout(triggerRecalculation, 2000);
+  //     return () => clearTimeout(timeoutId);
+  //   }
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [soldiers.length]); // Only run when soldiers are loaded
 
   useEffect(() => {
     // Fetch holidays when date range changes
@@ -974,20 +974,29 @@ const DA6Form = () => {
           soldierAssignments.sort((a, b) => new Date(b.date) - new Date(a.date));
           const mostRecentDutyDate = new Date(soldierAssignments[0].date);
           
-          // Calculate days from most recent duty to period end
-          // This becomes their new days_since_last_duty (baseline for future rosters)
-          const daysSince = Math.floor((periodEnd - mostRecentDutyDate) / (1000 * 60 * 60 * 24)) + 1;
+          // Calculate days from most recent duty to TODAY (not period end)
+          // Add +1 for each day after their last duty (including today)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Normalize to start of day
+          mostRecentDutyDate.setHours(0, 0, 0, 0);
+          
+          // Calculate days: +1 for each day after last duty
+          const daysSince = Math.floor((today - mostRecentDutyDate) / (1000 * 60 * 60 * 24));
           
           updates.push({
             soldierId: soldierId,
-            daysSince: daysSince
+            daysSince: Math.max(0, daysSince) // Ensure non-negative
           });
         } else {
           // Soldier had no duty assignments in this period
-          // They were charged with all details made during this period
-          // Increment their days_since_last_duty by the number of details made
+          // Increment their current days_since_last_duty by the number of days in the period
+          // This accounts for each day they didn't have duty
           const currentDaysSince = soldier.days_since_last_duty || 0;
-          const newDaysSince = currentDaysSince + totalDetailsMade;
+          const periodStart = new Date(formData.period_start);
+          periodStart.setHours(0, 0, 0, 0);
+          periodEnd.setHours(0, 0, 0, 0);
+          const daysInPeriod = Math.floor((periodEnd - periodStart) / (1000 * 60 * 60 * 24)) + 1;
+          const newDaysSince = currentDaysSince + daysInPeriod;
           
           updates.push({
             soldierId: soldierId,
@@ -996,22 +1005,43 @@ const DA6Form = () => {
         }
       }
       
-      // Update all soldiers
-      const updatePromises = updates.map(update => 
-        apiClient.put(`/soldiers/${update.soldierId}`, {
-          days_since_last_duty: update.daysSince
-        }).catch(err => {
-          console.error(`Error updating soldier ${update.soldierId}:`, err);
-          return null; // Continue with other updates even if one fails
-        })
-      );
+      // Update soldiers in batches to prevent rate limiting
+      const BATCH_SIZE = 5;
+      const BATCH_DELAY = 200; // 200ms delay between batches
+      let hasAuthError = false;
       
-      await Promise.all(updatePromises);
+      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+        // Stop if we hit an auth error
+        if (hasAuthError) break;
+        
+        const batch = updates.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(update => 
+          apiClient.put(`/soldiers/${update.soldierId}`, {
+            days_since_last_duty: update.daysSince
+          }).catch(err => {
+            // Stop processing if auth error
+            if (err.response?.status === 401) {
+              hasAuthError = true;
+              return null;
+            }
+            console.error(`Error updating soldier ${update.soldierId}:`, err);
+            return null; // Continue with other updates even if one fails
+          })
+        );
+        
+        await Promise.all(batchPromises);
+        
+        // Add delay between batches (except for the last batch)
+        if (i + BATCH_SIZE < updates.length && !hasAuthError) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
+      }
       
-      // Refresh soldiers list to get updated values
-      await fetchSoldiers();
-      
-      console.log(`Updated days_since_last_duty for ${updates.length} soldiers`);
+      if (!hasAuthError) {
+        // Refresh soldiers list to get updated values
+        await fetchSoldiers();
+        console.log(`Updated days_since_last_duty for ${updates.length} soldiers`);
+      }
     } catch (error) {
       console.error('Error updating days since last duty:', error);
       // Don't block form save if this fails, but log it
@@ -1032,17 +1062,41 @@ const DA6Form = () => {
         console.log('[Recalculate] No completed rosters found. Resetting all soldiers to 0 days.');
         // Reset all soldiers to 0 if no completed rosters
         const { data: soldiersData } = await apiClient.get('/soldiers');
-        const updatePromises = (soldiersData.soldiers || []).map(soldier =>
-          apiClient.put(`/soldiers/${soldier.id}`, {
-            days_since_last_duty: 0
-          }).catch(err => {
-            console.error(`Error updating soldier ${soldier.id}:`, err);
-            return null;
-          })
-        );
-        await Promise.all(updatePromises);
-        await fetchSoldiers();
-        console.log('[Recalculate] Reset all soldiers to 0 days since last duty.');
+        const allSoldiers = soldiersData.soldiers || [];
+        
+        // Update in batches to prevent rate limiting
+        const BATCH_SIZE = 5;
+        const BATCH_DELAY = 200;
+        let hasAuthError = false;
+        
+        for (let i = 0; i < allSoldiers.length; i += BATCH_SIZE) {
+          if (hasAuthError) break;
+          
+          const batch = allSoldiers.slice(i, i + BATCH_SIZE);
+          const batchPromises = batch.map(soldier =>
+            apiClient.put(`/soldiers/${soldier.id}`, {
+              days_since_last_duty: 0
+            }).catch(err => {
+              if (err.response?.status === 401) {
+                hasAuthError = true;
+                return null;
+              }
+              console.error(`Error updating soldier ${soldier.id}:`, err);
+              return null;
+            })
+          );
+          
+          await Promise.all(batchPromises);
+          
+          if (i + BATCH_SIZE < allSoldiers.length && !hasAuthError) {
+            await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+          }
+        }
+        
+        if (!hasAuthError) {
+          await fetchSoldiers();
+          console.log('[Recalculate] Reset all soldiers to 0 days since last duty.');
+        }
         return;
       }
       
@@ -1077,8 +1131,9 @@ const DA6Form = () => {
       }
       
       // Calculate days since last duty for each soldier
+      // Use TODAY as the reference date, not the period end
       const today = new Date();
-      const referenceDate = mostRecentPeriodEnd || today;
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
       const updates = [];
       
       // Get all soldiers
@@ -1089,24 +1144,26 @@ const DA6Form = () => {
         const lastDutyDate = soldierLastDutyDate[soldier.id];
         
         if (lastDutyDate) {
-          // Soldier had duty - calculate days from last duty to reference date
-          const daysSince = Math.floor((referenceDate - lastDutyDate) / (1000 * 60 * 60 * 24));
+          // Soldier had duty - calculate days from last duty to TODAY
+          // Add +1 for each day after their last duty (including today)
+          const dutyDate = new Date(lastDutyDate);
+          dutyDate.setHours(0, 0, 0, 0);
+          const daysSince = Math.floor((today - dutyDate) / (1000 * 60 * 60 * 24));
           updates.push({
             soldierId: soldier.id,
             daysSince: Math.max(0, daysSince) // Ensure non-negative
           });
         } else {
-          // Soldier had no duty in any completed roster - set to days from reference date
-          // This handles the case where a roster was deleted and soldier had no other duty
-          // We'll set it to a high number to indicate they haven't had duty recently
-          // Or we could calculate from the oldest roster's start date
+          // Soldier had no duty in any completed roster
+          // Calculate from the oldest roster's start date to today
           const oldestRosterStart = completedForms.reduce((oldest, form) => {
             const start = new Date(form.period_start);
+            start.setHours(0, 0, 0, 0);
             return !oldest || start < oldest ? start : oldest;
           }, null);
           
           if (oldestRosterStart) {
-            const daysSince = Math.floor((referenceDate - oldestRosterStart) / (1000 * 60 * 60 * 24));
+            const daysSince = Math.floor((today - oldestRosterStart) / (1000 * 60 * 60 * 24));
             updates.push({
               soldierId: soldier.id,
               daysSince: Math.max(0, daysSince)
@@ -1121,20 +1178,44 @@ const DA6Form = () => {
         }
       }
       
-      // Update all soldiers
-      const updatePromises = updates.map(update =>
-        apiClient.put(`/soldiers/${update.soldierId}`, {
-          days_since_last_duty: update.daysSince
-        }).catch(err => {
-          console.error(`Error updating soldier ${update.soldierId}:`, err);
-          return null;
-        })
-      );
+      // Update soldiers in batches to prevent rate limiting
+      const BATCH_SIZE = 5;
+      const BATCH_DELAY = 200; // 200ms delay between batches
+      let hasAuthError = false;
       
-      await Promise.all(updatePromises);
-      await fetchSoldiers();
+      for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+        // Stop if we hit an auth error
+        if (hasAuthError) break;
+        
+        const batch = updates.slice(i, i + BATCH_SIZE);
+        const batchPromises = batch.map(update =>
+          apiClient.put(`/soldiers/${update.soldierId}`, {
+            days_since_last_duty: update.daysSince
+          }).catch(err => {
+            // Stop processing if auth error
+            if (err.response?.status === 401) {
+              hasAuthError = true;
+              return null;
+            }
+            console.error(`Error updating soldier ${update.soldierId}:`, err);
+            return null;
+          })
+        );
+        
+        await Promise.all(batchPromises);
+        
+        // Add delay between batches (except for the last batch)
+        if (i + BATCH_SIZE < updates.length && !hasAuthError) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
+      }
       
-      console.log(`[Recalculate] Updated days_since_last_duty for ${updates.length} soldiers based on ${completedForms.length} completed roster(s).`);
+      if (!hasAuthError) {
+        await fetchSoldiers();
+        console.log(`[Recalculate] Updated days_since_last_duty for ${updates.length} soldiers based on ${completedForms.length} completed roster(s).`);
+      } else {
+        console.error('[Recalculate] Stopped due to authentication error');
+      }
     } catch (error) {
       console.error('[Recalculate] Error recalculating days since last duty:', error);
       alert('Warning: Could not recalculate days since last duty. Please try again or update manually.');
