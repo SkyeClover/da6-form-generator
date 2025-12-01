@@ -122,6 +122,105 @@ const Settings = () => {
           <h2>Settings</h2>
         </div>
 
+        {/* Help & Support Section */}
+        <div className="settings-section help-section">
+          <div className="section-header">
+            <h3>Help & Support</h3>
+          </div>
+          
+          <div className="help-content">
+            <div className="help-intro">
+              <p className="help-intro-text">
+                Welcome to the DA6 Form Generator! This guide will help you get started and make the most of the system.
+              </p>
+            </div>
+
+            <div className="help-sections">
+              <div className="help-subsection">
+                <h4>📋 Getting Started</h4>
+                <ol className="help-list">
+                  <li><strong>Add Soldiers:</strong> Go to the "Soldiers" page and add all personnel in your unit. Include their rank, name, EDIPI, and current days since last duty.</li>
+                  <li><strong>Migrate from Manual Tracking:</strong> Use the "Bulk Update Days Since Last Duty" feature to import your existing data via CSV or manually update values.</li>
+                  <li><strong>Set Up Holidays:</strong> In Settings, add federal holidays or custom unit holidays that should be excluded from duty assignments.</li>
+                  <li><strong>Create Your First Roster:</strong> Go to "Forms" and create a new DA6 form. Select soldiers, set the date range, and configure duty requirements.</li>
+                </ol>
+              </div>
+
+              <div className="help-subsection">
+                <h4>🔄 Cross-Roster Checking</h4>
+                <p>The system automatically checks for conflicts across all your rosters. When creating a new roster:</p>
+                <ul className="help-list">
+                  <li>Cross-roster checking is <strong>enabled by default</strong></li>
+                  <li>All other rosters are automatically selected for checking</li>
+                  <li>Exception codes (CQ, SD, D) are automatically applied to prevent double-booking</li>
+                  <li>You can manually adjust which rosters to check or disable the feature if needed</li>
+                </ul>
+              </div>
+
+              <div className="help-subsection">
+                <h4>👥 Managing Soldiers</h4>
+                <ul className="help-list">
+                  <li><strong>Soldier Profiles:</strong> Click "Profile" on any soldier to view and manage appointments, unavailability, and days since last duty</li>
+                  <li><strong>Appointments:</strong> Add leave, training, TDY, or other commitments that should prevent duty assignment</li>
+                  <li><strong>Days Since Last Duty:</strong> Automatically tracked, but can be manually adjusted for unit migration or corrections</li>
+                </ul>
+              </div>
+
+              <div className="help-subsection">
+                <h4>📊 Creating Rosters</h4>
+                <ul className="help-list">
+                  <li><strong>Duty Templates:</strong> Choose from pre-configured templates (CQ, Staff Duty, etc.) or create custom configurations</li>
+                  <li><strong>Rank Requirements:</strong> Specify how many soldiers of each rank/group are needed per day</li>
+                  <li><strong>Exceptions:</strong> Manually add exception codes for specific dates when soldiers cannot perform duty</li>
+                  <li><strong>Date Exclusions:</strong> Mark dates where no duty is needed (e.g., unit training days)</li>
+                </ul>
+              </div>
+
+              <div className="help-subsection">
+                <h4>📤 Migration from Manual Tracking</h4>
+                <p>If you're moving from manual tracking to this system:</p>
+                <ol className="help-list">
+                  <li>Export your current roster data to CSV (if available)</li>
+                  <li>Add all soldiers to the system</li>
+                  <li>Use "Bulk Update Days Since Last Duty" to import or manually enter current days since last duty for each soldier</li>
+                  <li>Create your first roster - the system will automatically track days going forward</li>
+                </ol>
+              </div>
+
+              <div className="help-subsection">
+                <h4>❓ Need Help?</h4>
+                <div className="help-contact">
+                  <p>If you have questions, encounter issues, or have suggestions for improvement:</p>
+                  <div className="contact-links">
+                    <a 
+                      href="https://github.com/SkyeClover/da6-form-generator" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="contact-link"
+                    >
+                      <span className="contact-icon">🔗</span>
+                      <div>
+                        <strong>GitHub Repository</strong>
+                        <span className="contact-detail">View documentation, report issues, or contribute</span>
+                      </div>
+                    </a>
+                    <a 
+                      href="mailto:jacobwalker852@gmail.com" 
+                      className="contact-link"
+                    >
+                      <span className="contact-icon">✉️</span>
+                      <div>
+                        <strong>Email Support</strong>
+                        <span className="contact-detail">jacobwalker852@gmail.com</span>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="settings-section">
           <div className="section-header">
             <h3>Holidays</h3>

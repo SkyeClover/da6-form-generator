@@ -4,6 +4,7 @@ import { sortSoldiersByRank } from '../utils/rankOrder';
 import Layout from './Layout';
 import BulkUpdateDays from './BulkUpdateDays';
 import SoldierProfile from './SoldierProfile';
+import Tooltip from './Tooltip';
 import './Soldiers.css';
 
 const Soldiers = () => {
@@ -310,13 +311,14 @@ const Soldiers = () => {
                     >
                       Edit
                     </button>
-                    <button 
-                      className="btn-profile"
-                      onClick={() => setSelectedProfileSoldier(soldier)}
-                      title="View profile and manage appointments"
-                    >
-                      Profile
-                    </button>
+                    <Tooltip text="View soldier profile, manage appointments, unavailability, and edit days since last duty">
+                      <button 
+                        className="btn-profile"
+                        onClick={() => setSelectedProfileSoldier(soldier)}
+                      >
+                        Profile
+                      </button>
+                    </Tooltip>
                     <button 
                       className="btn-delete"
                       onClick={() => handleDelete(soldier.id)}

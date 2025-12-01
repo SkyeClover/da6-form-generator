@@ -120,3 +120,117 @@
   font-size: 0.85rem;
 }
 
+/* Help Section Styles */
+.help-section {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #1e3c72;
+}
+
+.help-content {
+  padding: 0.5rem 0;
+}
+
+.help-intro {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #1e3c72;
+}
+
+.help-intro-text {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #333;
+  line-height: 1.6;
+}
+
+.help-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.help-subsection {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.help-subsection h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #1e3c72;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.help-list {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  color: #555;
+  line-height: 1.8;
+}
+
+.help-list li {
+  margin-bottom: 0.75rem;
+}
+
+.help-list li strong {
+  color: #1e3c72;
+}
+
+.help-contact {
+  margin-top: 1rem;
+}
+
+.contact-links {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.contact-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  text-decoration: none;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.contact-link:hover {
+  background: #e3f2fd;
+  border-color: #1e3c72;
+  transform: translateX(4px);
+}
+
+.contact-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.contact-link div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.contact-link strong {
+  color: #1e3c72;
+  font-size: 1rem;
+}
+
+.contact-detail {
+  color: #666;
+  font-size: 0.9rem;
+}
+

@@ -447,6 +447,21 @@ app.post('/api/generate-da6', verifyAuth, async (req, res) => {
   });
 });
 
+// Recalculate days since last duty for all soldiers based on all completed rosters
+app.post('/api/recalculate-days-since-duty', verifyAuth, async (req, res) => {
+  try {
+    // This endpoint triggers recalculation on the client side
+    // The actual calculation happens client-side to reuse existing assignment generation logic
+    res.json({ 
+      message: 'Recalculation triggered. Client will process all completed rosters.',
+      success: true
+    });
+  } catch (error) {
+    console.error('Error triggering recalculation:', error);
+    res.status(500).json({ error: 'Failed to trigger recalculation' });
+  }
+});
+
 // Export app for Vercel serverless functions
 module.exports = app;
 

@@ -7,6 +7,7 @@ import { DUTY_TEMPLATES, getDutyTemplate } from '../utils/dutyTemplates';
 import { getFederalHolidaysInRange } from '../utils/federalHolidays';
 import Layout from './Layout';
 import SoldierProfile from './SoldierProfile';
+import Tooltip from './Tooltip';
 import './DA6Form.css';
 
 const DA6Form = () => {
@@ -20,7 +21,7 @@ const DA6Form = () => {
   const [soldierAppointments, setSoldierAppointments] = useState({}); // { soldierId: [appointments] }
   const [holidays, setHolidays] = useState([]); // Array of holiday dates
   const [otherForms, setOtherForms] = useState([]); // For cross-roster checking
-  const [crossRosterCheckEnabled, setCrossRosterCheckEnabled] = useState(false);
+  const [crossRosterCheckEnabled, setCrossRosterCheckEnabled] = useState(true); // Auto-enabled by default
   const [selectedRostersForCheck, setSelectedRostersForCheck] = useState(new Set());
   const [excludedDates, setExcludedDates] = useState(new Set()); // Dates where no one is needed
   const [formData, setFormData] = useState({
@@ -57,6 +58,31 @@ const DA6Form = () => {
     fetchOtherForms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+  
+  // Recalculate days since last duty when component mounts to ensure accuracy
+  // This handles cases where rosters were deleted or edited elsewhere
+  useEffect(() => {
+    // Only recalculate if we have soldiers loaded and there are completed forms
+    if (soldiers.length > 0) {
+      const triggerRecalculation = async () => {
+        try {
+          const { data: formsData } = await apiClient.get('/da6-forms');
+          const completedForms = (formsData.forms || []).filter(f => f.status === 'completed');
+          if (completedForms.length > 0) {
+            // Recalculate to ensure accuracy after any roster changes
+            await recalculateAllDaysSinceDuty();
+          }
+        } catch (error) {
+          console.error('Error triggering recalculation on mount:', error);
+        }
+      };
+      
+      // Use a delay to ensure everything is loaded
+      const timeoutId = setTimeout(triggerRecalculation, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soldiers.length]); // Only run when soldiers are loaded
 
   useEffect(() => {
     // Fetch holidays when date range changes
@@ -65,6 +91,33 @@ const DA6Form = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.period_start, formData.period_end]);
+
+  // Automatically populate exceptions from cross-roster conflicts
+  // This runs whenever relevant data changes to ensure exceptions are always up-to-date
+  useEffect(() => {
+    if (
+      crossRosterCheckEnabled &&
+      selectedRostersForCheck.size > 0 &&
+      otherForms.length > 0 &&
+      formData.period_start &&
+      formData.period_end &&
+      selectedSoldiers.size > 0
+    ) {
+      // Run immediately to populate exceptions before assignments are generated
+      // The assignments key includes exceptions, so when exceptions update, assignments will regenerate
+      autoPopulateExceptionsFromCrossRoster();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    crossRosterCheckEnabled,
+    selectedRostersForCheck,
+    otherForms.length,
+    formData.period_start,
+    formData.period_end,
+    selectedSoldiers.size,
+    // Include actual roster IDs in dependency to trigger when rosters change
+    JSON.stringify(Array.from(selectedRostersForCheck).sort())
+  ]);
 
   const fetchForm = async () => {
     try {
@@ -124,6 +177,17 @@ const DA6Form = () => {
       if (form.form_data?.holidays) {
         setHolidays(form.form_data.holidays);
       }
+      // Load cross-roster checking settings, or auto-enable if not set
+      if (form.form_data?.cross_roster_check_enabled !== undefined) {
+        setCrossRosterCheckEnabled(form.form_data.cross_roster_check_enabled);
+      } else {
+        // Auto-enable for existing forms that don't have this setting
+        setCrossRosterCheckEnabled(true);
+      }
+      if (form.form_data?.selected_rosters_for_check && form.form_data.selected_rosters_for_check.length > 0) {
+        setSelectedRostersForCheck(new Set(form.form_data.selected_rosters_for_check));
+      }
+      // Note: If no rosters are selected, fetchOtherForms will auto-select all forms
     } catch (error) {
       console.error('Error fetching form:', error);
       alert('Error loading form');
@@ -179,6 +243,25 @@ const DA6Form = () => {
         ? (data.forms || []).filter(f => f.id !== id)
         : (data.forms || []);
       setOtherForms(otherForms);
+      
+      // Automatically enable cross-roster checking and select all other forms
+      // Only auto-select if no rosters are currently selected (to avoid overriding user choices)
+      if (otherForms.length > 0) {
+        setCrossRosterCheckEnabled(prev => {
+          // Only enable if not already explicitly disabled
+          return prev !== false ? true : false;
+        });
+        
+        // Only auto-select all if none are currently selected
+        setSelectedRostersForCheck(prev => {
+          if (prev.size === 0 && otherForms.length > 0) {
+            const newSet = new Set(otherForms.map(f => f.id));
+            console.log(`[Auto Cross-Roster] Auto-selected ${newSet.size} roster(s) for cross-checking`);
+            return newSet;
+          }
+          return prev;
+        });
+      }
     } catch (error) {
       console.error('Error fetching other forms:', error);
     }
@@ -383,51 +466,9 @@ const DA6Form = () => {
       tempDate.setDate(tempDate.getDate() + 1);
     }
     
-    // Pre-populate exceptions from cross-roster conflicts (if enabled)
-    if (crossRosterCheckEnabled && selectedRostersForCheck.size > 0) {
-      const tempDate2 = new Date(start);
-      while (tempDate2 <= end) {
-        const dateStr = tempDate2.toISOString().split('T')[0];
-        
-        // Check each selected roster
-        for (const formId of selectedRostersForCheck) {
-          const otherForm = otherForms.find(f => f.id === formId);
-          if (!otherForm || !otherForm.form_data) continue;
-          
-          // Generate assignments for the other form to see actual duty assignments
-          const otherFormAssignmentsMap = generateAssignmentsForOtherForm(otherForm);
-          const otherFormDutyType = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
-          
-          // Check each selected soldier
-          Array.from(selectedSoldiers).forEach(soldierId => {
-            // Check if soldier is assigned duty on this date in the other roster
-            const hasDutyAssignment = otherFormAssignmentsMap[soldierId]?.[dateStr]?.duty === true;
-            
-            if (hasDutyAssignment) {
-              // Determine appropriate exception code based on other form's duty type
-              let exceptionCode = 'D'; // Default to 'D' for Detail
-              
-              if (otherFormDutyType === 'CQ' || otherFormDutyType === 'Charge of Quarters') {
-                exceptionCode = 'CQ';
-              } else if (otherFormDutyType === 'BN Staff Duty' || otherFormDutyType === 'Brigade Staff Duty' || otherFormDutyType.includes('Staff Duty')) {
-                exceptionCode = 'SD';
-              }
-              
-              // Add to exceptions (user-defined exceptions take precedence)
-              if (!appointmentExceptions[soldierId]) {
-                appointmentExceptions[soldierId] = {};
-              }
-              // Only set if not already set by user
-              if (!appointmentExceptions[soldierId][dateStr]) {
-                appointmentExceptions[soldierId][dateStr] = exceptionCode;
-              }
-            }
-          });
-        }
-        
-        tempDate2.setDate(tempDate2.getDate() + 1);
-      }
-    }
+    // Cross-roster exceptions should already be in the exceptions state
+    // (populated by autoPopulateExceptionsFromCrossRoster via useEffect)
+    // We don't recalculate them here to avoid race conditions and ensure consistency
     
     // Get available soldiers (filter out those with exceptions, including appointment and cross-roster exceptions)
     const getAvailableSoldiers = (dateStr) => {
@@ -896,8 +937,133 @@ const DA6Form = () => {
     }
   };
 
+  // Recalculate days since last duty for all soldiers based on ALL completed rosters
+  const recalculateAllDaysSinceDuty = async () => {
+    try {
+      console.log('[Recalculate] Starting recalculation of days since last duty from all completed rosters...');
+      
+      // Fetch all completed rosters
+      const { data: formsData } = await apiClient.get('/da6-forms');
+      const completedForms = (formsData.forms || []).filter(f => f.status === 'completed');
+      
+      if (completedForms.length === 0) {
+        console.log('[Recalculate] No completed rosters found. Resetting all soldiers to 0 days.');
+        // Reset all soldiers to 0 if no completed rosters
+        const { data: soldiersData } = await apiClient.get('/soldiers');
+        const updatePromises = (soldiersData.soldiers || []).map(soldier =>
+          apiClient.put(`/soldiers/${soldier.id}`, {
+            days_since_last_duty: 0
+          }).catch(err => {
+            console.error(`Error updating soldier ${soldier.id}:`, err);
+            return null;
+          })
+        );
+        await Promise.all(updatePromises);
+        await fetchSoldiers();
+        console.log('[Recalculate] Reset all soldiers to 0 days since last duty.');
+        return;
+      }
+      
+      // Find the most recent period end date across all completed rosters
+      let mostRecentPeriodEnd = null;
+      completedForms.forEach(form => {
+        const periodEnd = new Date(form.period_end);
+        if (!mostRecentPeriodEnd || periodEnd > mostRecentPeriodEnd) {
+          mostRecentPeriodEnd = periodEnd;
+        }
+      });
+      
+      // Track the most recent duty assignment for each soldier across all rosters
+      const soldierLastDutyDate = {}; // { soldierId: Date }
+      
+      // Process each completed roster
+      for (const form of completedForms) {
+        const assignmentsMap = generateAssignmentsForOtherForm(form);
+        
+        // Extract duty assignments for each soldier
+        Object.entries(assignmentsMap).forEach(([soldierId, dateAssignments]) => {
+          Object.entries(dateAssignments).forEach(([dateStr, assignment]) => {
+            if (assignment.duty && !assignment.exception_code) {
+              // This is an actual duty assignment
+              const dutyDate = new Date(dateStr);
+              if (!soldierLastDutyDate[soldierId] || dutyDate > soldierLastDutyDate[soldierId]) {
+                soldierLastDutyDate[soldierId] = dutyDate;
+              }
+            }
+          });
+        });
+      }
+      
+      // Calculate days since last duty for each soldier
+      const today = new Date();
+      const referenceDate = mostRecentPeriodEnd || today;
+      const updates = [];
+      
+      // Get all soldiers
+      const { data: soldiersData } = await apiClient.get('/soldiers');
+      const allSoldiers = soldiersData.soldiers || [];
+      
+      for (const soldier of allSoldiers) {
+        const lastDutyDate = soldierLastDutyDate[soldier.id];
+        
+        if (lastDutyDate) {
+          // Soldier had duty - calculate days from last duty to reference date
+          const daysSince = Math.floor((referenceDate - lastDutyDate) / (1000 * 60 * 60 * 24));
+          updates.push({
+            soldierId: soldier.id,
+            daysSince: Math.max(0, daysSince) // Ensure non-negative
+          });
+        } else {
+          // Soldier had no duty in any completed roster - set to days from reference date
+          // This handles the case where a roster was deleted and soldier had no other duty
+          // We'll set it to a high number to indicate they haven't had duty recently
+          // Or we could calculate from the oldest roster's start date
+          const oldestRosterStart = completedForms.reduce((oldest, form) => {
+            const start = new Date(form.period_start);
+            return !oldest || start < oldest ? start : oldest;
+          }, null);
+          
+          if (oldestRosterStart) {
+            const daysSince = Math.floor((referenceDate - oldestRosterStart) / (1000 * 60 * 60 * 24));
+            updates.push({
+              soldierId: soldier.id,
+              daysSince: Math.max(0, daysSince)
+            });
+          } else {
+            // No rosters at all - set to 0
+            updates.push({
+              soldierId: soldier.id,
+              daysSince: 0
+            });
+          }
+        }
+      }
+      
+      // Update all soldiers
+      const updatePromises = updates.map(update =>
+        apiClient.put(`/soldiers/${update.soldierId}`, {
+          days_since_last_duty: update.daysSince
+        }).catch(err => {
+          console.error(`Error updating soldier ${update.soldierId}:`, err);
+          return null;
+        })
+      );
+      
+      await Promise.all(updatePromises);
+      await fetchSoldiers();
+      
+      console.log(`[Recalculate] Updated days_since_last_duty for ${updates.length} soldiers based on ${completedForms.length} completed roster(s).`);
+    } catch (error) {
+      console.error('[Recalculate] Error recalculating days since last duty:', error);
+      alert('Warning: Could not recalculate days since last duty. Please try again or update manually.');
+    }
+  };
+
   const handleSave = async (status = 'draft') => {
     try {
+      const wasCompleted = id && formData.status === 'completed';
+      const isCompleting = status === 'completed';
+      
       // Don't generate all assignments - they can be generated on-demand
       // Only store the source data to keep payload size manageable
       const payload = {
@@ -920,9 +1086,14 @@ const DA6Form = () => {
       if (id) {
         await apiClient.put(`/da6-forms/${id}`, payload);
         
-        // Update days since last duty when form is completed
-        if (status === 'completed') {
-          await updateSoldiersDaysSinceDuty();
+        // If form was completed and is being edited, or if completing, recalculate all
+        if (wasCompleted || isCompleting) {
+          if (isCompleting) {
+            // First update based on this form
+            await updateSoldiersDaysSinceDuty();
+          }
+          // Then recalculate from all completed rosters to ensure accuracy
+          await recalculateAllDaysSinceDuty();
           navigate(`/forms/${id}/view`);
         } else {
           alert('Form saved successfully!');
@@ -934,6 +1105,8 @@ const DA6Form = () => {
         // Update days since last duty when form is completed
         if (status === 'completed') {
           await updateSoldiersDaysSinceDuty();
+          // Recalculate from all completed rosters to ensure accuracy
+          await recalculateAllDaysSinceDuty();
           navigate(`/forms/${data.form.id}/view`);
         } else {
           navigate(`/forms/${data.form.id}`);
@@ -1012,6 +1185,90 @@ const DA6Form = () => {
     });
     
     setExceptions(newExceptions);
+  };
+
+  // Automatically populate exceptions from cross-roster conflicts
+  const autoPopulateExceptionsFromCrossRoster = () => {
+    if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) {
+      return;
+    }
+
+    if (!crossRosterCheckEnabled || selectedRostersForCheck.size === 0 || otherForms.length === 0) {
+      return;
+    }
+
+    // Use functional update to ensure we have the latest exceptions state
+    setExceptions(prevExceptions => {
+      const newExceptions = { ...prevExceptions };
+      const start = new Date(formData.period_start);
+      const end = new Date(formData.period_end);
+      const current = new Date(start);
+      let conflictsFound = 0;
+      let hasChanges = false;
+
+      // Iterate through all dates in the current form's period
+      while (current <= end) {
+        const dateStr = current.toISOString().split('T')[0];
+        
+        // Check each selected roster
+        for (const formId of selectedRostersForCheck) {
+          const otherForm = otherForms.find(f => f.id === formId);
+          if (!otherForm || !otherForm.form_data) continue;
+          
+          // Generate assignments for the other form to see actual duty assignments
+          const otherFormAssignmentsMap = generateAssignmentsForOtherForm(otherForm);
+          const otherFormDutyType = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
+          
+          // Check each selected soldier
+          Array.from(selectedSoldiers).forEach(soldierId => {
+            // Check if soldier is assigned duty on this date in the other roster
+            const hasDutyAssignment = otherFormAssignmentsMap[soldierId]?.[dateStr]?.duty === true;
+            
+            if (hasDutyAssignment) {
+              // Determine appropriate exception code based on other form's duty type
+              let exceptionCode = 'D'; // Default to 'D' for Detail
+              
+              if (otherFormDutyType === 'CQ' || otherFormDutyType === 'Charge of Quarters') {
+                exceptionCode = 'CQ';
+              } else if (otherFormDutyType === 'BN Staff Duty' || otherFormDutyType === 'Brigade Staff Duty' || otherFormDutyType.includes('Staff Duty')) {
+                exceptionCode = 'SD';
+              }
+              
+              // Only add if not already set by user (user-defined exceptions take precedence)
+              if (!newExceptions[soldierId]) {
+                newExceptions[soldierId] = {};
+              }
+              // Only set if not already set by user or if it's different
+              const currentException = newExceptions[soldierId][dateStr];
+              if (!currentException || currentException !== exceptionCode) {
+                // Only update if it's not a user-defined exception (user exceptions take precedence)
+                // If there's no current exception, or if the current one is also auto-generated, update it
+                if (!prevExceptions[soldierId]?.[dateStr] || 
+                    (prevExceptions[soldierId]?.[dateStr] && 
+                     (prevExceptions[soldierId][dateStr] === 'CQ' || 
+                      prevExceptions[soldierId][dateStr] === 'SD' || 
+                      prevExceptions[soldierId][dateStr] === 'D'))) {
+                  newExceptions[soldierId][dateStr] = exceptionCode;
+                  conflictsFound++;
+                  hasChanges = true;
+                  console.log(`[Auto Cross-Roster] Found conflict: Soldier ${soldierId} on ${dateStr} - applying ${exceptionCode} from ${otherForm.unit_name}`);
+                }
+              }
+            }
+          });
+        }
+        
+        current.setDate(current.getDate() + 1);
+      }
+
+      if (conflictsFound > 0 && hasChanges) {
+        console.log(`[Auto Cross-Roster] Automatically applied ${conflictsFound} exception(s) from cross-roster conflicts`);
+        return newExceptions;
+      }
+      
+      // Return previous state if no changes
+      return prevExceptions;
+    });
   };
 
   const handleProfileUpdate = () => {
@@ -2002,22 +2259,27 @@ const DA6Form = () => {
                     </label>
                     <div className="soldier-item-actions">
                       {hasAppointments && (
-                        <span className="appointments-badge" title={`${appointments.length} appointment(s) scheduled`}>
-                          📅 {appointments.length}
-                        </span>
+                        <Tooltip text={`${appointments.length} appointment(s) scheduled for this soldier. Click Profile to view details.`}>
+                          <span className="appointments-badge">
+                            📅 {appointments.length}
+                          </span>
+                        </Tooltip>
                       )}
                       {hasUnavailabilityInRange && (
-                        <span className="unavailable-badge" title="Unavailable during this period">
-                          ⚠️
-                        </span>
+                        <Tooltip text={`This soldier has appointments or unavailability during the selected period. Click Profile to view details.`}>
+                          <span className="unavailable-badge">
+                            ⚠️
+                          </span>
+                        </Tooltip>
                       )}
-                      <button
-                        className="btn-profile"
-                        onClick={() => setSelectedProfileSoldier(soldier)}
-                        title="View profile and appointments"
-                      >
-                        Profile
-                      </button>
+                      <Tooltip text="View soldier profile, manage appointments, and edit days since last duty">
+                        <button
+                          className="btn-profile"
+                          onClick={() => setSelectedProfileSoldier(soldier)}
+                        >
+                          Profile
+                        </button>
+                      </Tooltip>
                     </div>
                   </div>
                 );
@@ -2117,8 +2379,17 @@ const DA6Form = () => {
           <div className="form-section">
             <h3>Cross-Roster Checking</h3>
             <p className="section-description">
-              Enable automatic cross-roster checking. When enabled, the roster generation will automatically skip soldiers who are already assigned duty in the selected rosters and apply appropriate exception codes (CQ, SD, or D).
+              <strong>Automatic cross-roster checking is enabled by default.</strong> The system automatically checks all other DA6 forms in your account and applies appropriate exception codes (CQ, SD, or D) to prevent scheduling conflicts. Exception codes are automatically added before generating assignments to ensure soldiers' previous commitments are respected.
             </p>
+            {otherForms.length > 0 ? (
+              <p className="section-description" style={{ color: '#28a745', fontWeight: 'bold' }}>
+                ✓ Automatically checking {otherForms.length} other roster(s) for conflicts
+              </p>
+            ) : (
+              <p className="section-description" style={{ color: '#6c757d' }}>
+                No other rosters found. Cross-roster checking will activate when other rosters are created.
+              </p>
+            )}
             <div className="form-row">
               <div className="form-group">
                 <label>
@@ -2140,37 +2411,56 @@ const DA6Form = () => {
             {crossRosterCheckEnabled && otherForms.length > 0 && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>Select Rosters to Check:</label>
-                  {otherForms.map(form => (
-                    <label key={form.id}>
+                  <label>Select Rosters to Check (all selected by default):</label>
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px' }}>
                       <input
                         type="checkbox"
-                        checked={selectedRostersForCheck.has(form.id)}
+                        checked={selectedRostersForCheck.size === otherForms.length}
                         onChange={(e) => {
-                          const newSet = new Set(selectedRostersForCheck);
                           if (e.target.checked) {
-                            newSet.add(form.id);
+                            // Select all
+                            setSelectedRostersForCheck(new Set(otherForms.map(f => f.id)));
                           } else {
-                            newSet.delete(form.id);
+                            // Deselect all
+                            setSelectedRostersForCheck(new Set());
                           }
-                          setSelectedRostersForCheck(newSet);
                         }}
                       />
-                      {form.unit_name} ({new Date(form.period_start).toLocaleDateString()} - {new Date(form.period_end).toLocaleDateString()})
+                      <strong>Select/Deselect All</strong>
                     </label>
-                  ))}
+                    {otherForms.map(form => (
+                      <label key={form.id} style={{ display: 'block', marginLeft: '20px', marginBottom: '4px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedRostersForCheck.has(form.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedRostersForCheck);
+                            if (e.target.checked) {
+                              newSet.add(form.id);
+                            } else {
+                              newSet.delete(form.id);
+                            }
+                            setSelectedRostersForCheck(newSet);
+                          }}
+                        />
+                        {form.unit_name} ({new Date(form.period_start).toLocaleDateString()} - {new Date(form.period_end).toLocaleDateString()})
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
             {crossRosterCheckEnabled && selectedRostersForCheck.size > 0 && (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={performCrossRosterCheck}
-                title="Cross-roster checking is automatic during generation. Click to see status."
-              >
-                Check Status
-              </button>
+              <Tooltip text="Cross-roster checking automatically prevents double-booking by applying exception codes (CQ, SD, D) when soldiers are already assigned duty in other rosters. This happens automatically during roster generation.">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={performCrossRosterCheck}
+                >
+                  Check Status
+                </button>
+              </Tooltip>
             )}
           </div>
         )}
@@ -2244,21 +2534,22 @@ const DA6Form = () => {
                             <td 
                               key={dateIdx} 
                               className={`${isWeekendDay ? 'weekend-cell' : ''} ${isHolidayDay ? 'holiday-cell' : ''} ${isExcluded ? 'excluded-cell' : ''} ${isCrossRosterException ? 'cross-roster-exception' : ''}`}
-                              title={isCrossRosterException ? 'Cross-roster conflict (automatically applied)' : ''}
                             >
                               {shouldShow && (
-                                <select
-                                  value={currentException}
-                                  onChange={(e) => addException(soldierId, dateStr, e.target.value)}
-                                  className={`exception-select ${isCrossRosterException ? 'cross-roster' : ''}`}
-                                >
-                                  <option value="">-</option>
-                                  {Object.entries(EXCEPTION_CODES).map(([code, name]) => (
-                                    <option key={code} value={code}>
-                                      {code}
-                                    </option>
-                                  ))}
-                                </select>
+                                <Tooltip text={isCrossRosterException ? 'Cross-roster conflict: This soldier is already assigned duty in another roster on this date. Exception code automatically applied.' : 'Select an exception code for this date, or leave blank for normal duty assignment.'}>
+                                  <select
+                                    value={currentException}
+                                    onChange={(e) => addException(soldierId, dateStr, e.target.value)}
+                                    className={`exception-select ${isCrossRosterException ? 'cross-roster' : ''}`}
+                                  >
+                                    <option value="">-</option>
+                                    {Object.entries(EXCEPTION_CODES).map(([code, name]) => (
+                                      <option key={code} value={code}>
+                                        {code}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </Tooltip>
                               )}
                             </td>
                           );

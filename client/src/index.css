@@ -19,3 +19,41 @@ code {
     monospace;
 }
 
+/* Global tooltip improvements */
+[title] {
+  cursor: help;
+  position: relative;
+}
+
+/* Better default tooltip styling */
+[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5rem 0.75rem;
+  background: #1e3c72;
+  color: white;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  z-index: 10000;
+  margin-bottom: 8px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+[title]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1e3c72;
+  margin-bottom: 2px;
+  z-index: 10001;
+  pointer-events: none;
+}
+

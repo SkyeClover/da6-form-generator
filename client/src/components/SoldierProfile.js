@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../utils/api';
 import { getExceptionCodesList } from '../utils/exceptionCodes';
+import Tooltip from './Tooltip';
 import './SoldierProfile.css';
 
 const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
@@ -184,13 +185,14 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
                     <span className={`days-badge ${(soldier.days_since_last_duty || 0) > 14 ? 'high' : (soldier.days_since_last_duty || 0) > 7 ? 'medium' : 'low'}`}>
                       {soldier.days_since_last_duty || 0} days
                     </span>
-                    <button 
-                      className="btn-edit-inline"
-                      onClick={() => setEditingDaysSinceDuty(true)}
-                      title="Edit days since last duty"
-                    >
-                      ✏️
-                    </button>
+                    <Tooltip text="Edit days since last duty. Important for unit migration - enter the current number of days since this soldier's last duty assignment.">
+                      <button 
+                        className="btn-edit-inline"
+                        onClick={() => setEditingDaysSinceDuty(true)}
+                      >
+                        ✏️
+                      </button>
+                    </Tooltip>
                   </div>
                 )}
               </div>
