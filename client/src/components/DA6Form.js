@@ -18,7 +18,6 @@ const DA6Form = () => {
   const [saving, setSaving] = useState(false);
   const [updatingSoldiers, setUpdatingSoldiers] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [soldiers, setSoldiers] = useState([]);
   const [selectedSoldiers, setSelectedSoldiers] = useState(new Set());
   const [exceptions, setExceptions] = useState({}); // { soldierId: { date: exceptionCode } }
@@ -858,7 +857,6 @@ const DA6Form = () => {
           detailsMade.add(a.date);
         }
       });
-      const totalDetailsMade = detailsMade.size;
       
       // Get global exclusions and rank requirements
       const dutyConfig = formData.duty_config || {};
@@ -1014,11 +1012,11 @@ const DA6Form = () => {
       // Update soldiers in batches to prevent rate limiting
       const BATCH_SIZE = 5;
       const BATCH_DELAY = 200; // 200ms delay between batches
-      let hasAuthError = false;
+      const authErrorRef = { value: false };
       
       for (let i = 0; i < updates.length; i += BATCH_SIZE) {
         // Stop if we hit an auth error
-        if (hasAuthError) break;
+        if (authErrorRef.value) break;
         
         const batch = updates.slice(i, i + BATCH_SIZE);
         const batchPromises = batch.map(update => 
@@ -1027,7 +1025,7 @@ const DA6Form = () => {
           }).catch(err => {
             // Stop processing if auth error
             if (err.response?.status === 401) {
-              hasAuthError = true;
+              authErrorRef.value = true;
               return null;
             }
             console.error(`Error updating soldier ${update.soldierId}:`, err);
@@ -1038,12 +1036,12 @@ const DA6Form = () => {
         await Promise.all(batchPromises);
         
         // Add delay between batches (except for the last batch)
-        if (i + BATCH_SIZE < updates.length && !hasAuthError) {
+        if (i + BATCH_SIZE < updates.length && !authErrorRef.value) {
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
       
-      if (!hasAuthError) {
+      if (!authErrorRef.value) {
         // Refresh soldiers list to get updated values
         await fetchSoldiers();
         console.log(`Updated days_since_last_duty for ${updates.length} soldiers`);
@@ -1189,11 +1187,11 @@ const DA6Form = () => {
       // Update soldiers in batches to prevent rate limiting
       const BATCH_SIZE = 5;
       const BATCH_DELAY = 200; // 200ms delay between batches
-      let hasAuthError = false;
+      const authErrorRef = { value: false };
       
       for (let i = 0; i < updates.length; i += BATCH_SIZE) {
         // Stop if we hit an auth error
-        if (hasAuthError) break;
+        if (authErrorRef.value) break;
         
         const batch = updates.slice(i, i + BATCH_SIZE);
         const batchPromises = batch.map(update =>
@@ -1202,7 +1200,7 @@ const DA6Form = () => {
           }).catch(err => {
             // Stop processing if auth error
             if (err.response?.status === 401) {
-              hasAuthError = true;
+              authErrorRef.value = true;
               return null;
             }
             console.error(`Error updating soldier ${update.soldierId}:`, err);
@@ -1213,12 +1211,12 @@ const DA6Form = () => {
         await Promise.all(batchPromises);
         
         // Add delay between batches (except for the last batch)
-        if (i + BATCH_SIZE < updates.length && !hasAuthError) {
+        if (i + BATCH_SIZE < updates.length && !authErrorRef.value) {
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
       
-      if (!hasAuthError) {
+      if (!authErrorRef.value) {
         await fetchSoldiers();
         console.log(`[Recalculate] Updated days_since_last_duty for ${updates.length} soldiers based on ${completedForms.length} completed roster(s).`);
       } else {
