@@ -1057,6 +1057,9 @@ const DA6Form = () => {
   };
 
   // Recalculate days since last duty for all soldiers based on ALL completed rosters
+  // Note: This function is kept for potential future use but is currently not called
+  // when completing forms to prevent unnecessary recalculations and preserve existing days
+  // eslint-disable-next-line no-unused-vars
   const recalculateAllDaysSinceDuty = async () => {
     try {
       console.log('[Recalculate] Starting recalculation of days since last duty from all completed rosters...');
