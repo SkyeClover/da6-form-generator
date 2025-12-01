@@ -98,7 +98,7 @@ const Soldiers = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading soldiers...</div>;
+    return <LoadingScreen message="Loading soldiers..." />;
   }
 
   return (
