@@ -528,6 +528,24 @@ const DA6Form = () => {
     const rankRequirements = formData.duty_config.rank_requirements?.requirements || [];
     const globalExclusions = formData.duty_config.rank_requirements?.exclusions || { ranks: [], groups: [] };
     
+    // Build a map of the most recent duty date for each soldier from completed forms
+    // This is used to properly calculate days since last duty and check days off
+    const lastDutyDateFromCompletedForms = {}; // { soldierId: dateStr }
+    const completedForms = otherForms.filter(f => f.status === 'completed');
+    completedForms.forEach(form => {
+      if (!form.form_data) return;
+      const formAssignments = form.form_data.assignments || [];
+      formAssignments.forEach(assignment => {
+        if (assignment.soldier_id && assignment.duty && !assignment.exception_code) {
+          const soldierId = assignment.soldier_id;
+          const dutyDate = assignment.date;
+          if (!lastDutyDateFromCompletedForms[soldierId] || dutyDate > lastDutyDateFromCompletedForms[soldierId]) {
+            lastDutyDateFromCompletedForms[soldierId] = dutyDate;
+          }
+        }
+      });
+    });
+    
     // Collect appointment-based exceptions and cross-roster exceptions (don't modify state directly)
     const appointmentExceptions = { ...exceptions };
     
@@ -609,20 +627,27 @@ const DA6Form = () => {
               
               // Calculate days since last duty for each soldier
               const getDaysSinceLastDuty = (soldier) => {
-                // Start with stored days since last duty
-                let daysSince = soldier.days_since_last_duty || 0;
-                
-                // If soldier was assigned duty in this period, calculate from that assignment
-                const lastDate = lastAssignmentMap[soldier.id];
-                if (lastDate) {
-                  const lastDateObj = new Date(lastDate);
+                // Check if soldier was assigned duty in this period (current form being generated)
+                const lastDateInPeriod = lastAssignmentMap[soldier.id];
+                if (lastDateInPeriod) {
+                  const lastDateObj = new Date(lastDateInPeriod);
                   const daysSinceAssignment = Math.floor((current - lastDateObj) / (1000 * 60 * 60 * 24));
-                  // Use the stored days_since_last_duty as baseline, add days since assignment
-                  // This accounts for days before the period started
-                  daysSince = (soldier.days_since_last_duty || 0) + daysSinceAssignment;
+                  return daysSinceAssignment;
                 }
                 
-                return daysSince;
+                // Check completed forms for most recent duty date
+                const lastDutyDateFromForms = lastDutyDateFromCompletedForms[soldier.id];
+                if (lastDutyDateFromForms) {
+                  const lastDutyDateObj = new Date(lastDutyDateFromForms);
+                  lastDutyDateObj.setHours(0, 0, 0, 0);
+                  const currentDate = new Date(current);
+                  currentDate.setHours(0, 0, 0, 0);
+                  const daysSince = Math.floor((currentDate - lastDutyDateObj) / (1000 * 60 * 60 * 24));
+                  return daysSince;
+                }
+                
+                // Fall back to stored days since last duty
+                return soldier.days_since_last_duty || 0;
               };
               
               // Sort by days since last duty (MOST days first - PRIMARY criterion), then preferred ranks, fallback ranks, rank order, alphabetical
@@ -673,12 +698,26 @@ const DA6Form = () => {
                 if (selectedForRequirement >= quantity) break;
                 
                 // Check if soldier is still in days-off period
-                const lastDate = lastAssignmentMap[soldier.id];
-                if (lastDate) {
-                  const lastDateObj = new Date(lastDate);
+                // First check if they had duty in this period
+                const lastDateInPeriod = lastAssignmentMap[soldier.id];
+                if (lastDateInPeriod) {
+                  const lastDateObj = new Date(lastDateInPeriod);
                   const daysSince = Math.floor((current - lastDateObj) / (1000 * 60 * 60 * 24));
                   if (daysSince <= daysOffAfterDuty) {
                     continue; // Skip this soldier, they're still in days-off period
+                  }
+                } else {
+                  // Check completed forms for most recent duty date
+                  const lastDutyDateFromForms = lastDutyDateFromCompletedForms[soldier.id];
+                  if (lastDutyDateFromForms) {
+                    const lastDutyDateObj = new Date(lastDutyDateFromForms);
+                    lastDutyDateObj.setHours(0, 0, 0, 0);
+                    const currentDate = new Date(current);
+                    currentDate.setHours(0, 0, 0, 0);
+                    const daysSince = Math.floor((currentDate - lastDutyDateObj) / (1000 * 60 * 60 * 24));
+                    if (daysSince <= daysOffAfterDuty) {
+                      continue; // Skip this soldier, they're still in days-off period
+                    }
                   }
                 }
                 
@@ -701,14 +740,27 @@ const DA6Form = () => {
             
             // Calculate days since last duty for each soldier
             const getDaysSinceLastDuty = (soldier) => {
-              let daysSince = soldier.days_since_last_duty || 0;
-              const lastDate = lastAssignmentMap[soldier.id];
-              if (lastDate) {
-                const lastDateObj = new Date(lastDate);
+              // Check if soldier was assigned duty in this period (current form being generated)
+              const lastDateInPeriod = lastAssignmentMap[soldier.id];
+              if (lastDateInPeriod) {
+                const lastDateObj = new Date(lastDateInPeriod);
                 const daysSinceAssignment = Math.floor((current - lastDateObj) / (1000 * 60 * 60 * 24));
-                daysSince = (soldier.days_since_last_duty || 0) + daysSinceAssignment;
+                return daysSinceAssignment;
               }
-              return daysSince;
+              
+              // Check completed forms for most recent duty date
+              const lastDutyDateFromForms = lastDutyDateFromCompletedForms[soldier.id];
+              if (lastDutyDateFromForms) {
+                const lastDutyDateObj = new Date(lastDutyDateFromForms);
+                lastDutyDateObj.setHours(0, 0, 0, 0);
+                const currentDate = new Date(current);
+                currentDate.setHours(0, 0, 0, 0);
+                const daysSince = Math.floor((currentDate - lastDutyDateObj) / (1000 * 60 * 60 * 24));
+                return daysSince;
+              }
+              
+              // Fall back to stored days since last duty
+              return soldier.days_since_last_duty || 0;
             };
             
             // Sort by days since last duty (MOST days first - PRIMARY), then rank order, then alphabetical
@@ -745,12 +797,26 @@ const DA6Form = () => {
               if (selectedForDay.length >= soldiersPerDay) break;
               
               // Check if soldier is still in days-off period
-              const lastDate = lastAssignmentMap[soldier.id];
-              if (lastDate) {
-                const lastDateObj = new Date(lastDate);
+              // First check if they had duty in this period
+              const lastDateInPeriod = lastAssignmentMap[soldier.id];
+              if (lastDateInPeriod) {
+                const lastDateObj = new Date(lastDateInPeriod);
                 const daysSince = Math.floor((current - lastDateObj) / (1000 * 60 * 60 * 24));
                 if (daysSince <= daysOffAfterDuty) {
                   continue; // Skip this soldier, they're still in days-off period
+                }
+              } else {
+                // Check completed forms for most recent duty date
+                const lastDutyDateFromForms = lastDutyDateFromCompletedForms[soldier.id];
+                if (lastDutyDateFromForms) {
+                  const lastDutyDateObj = new Date(lastDutyDateFromForms);
+                  lastDutyDateObj.setHours(0, 0, 0, 0);
+                  const currentDate = new Date(current);
+                  currentDate.setHours(0, 0, 0, 0);
+                  const daysSince = Math.floor((currentDate - lastDutyDateObj) / (1000 * 60 * 60 * 24));
+                  if (daysSince <= daysOffAfterDuty) {
+                    continue; // Skip this soldier, they're still in days-off period
+                  }
                 }
               }
               
@@ -978,13 +1044,15 @@ const DA6Form = () => {
           soldierAssignments.sort((a, b) => new Date(b.date) - new Date(a.date));
           const mostRecentDutyDate = new Date(soldierAssignments[0].date);
           
-          // Calculate days from most recent duty to TODAY (not period end)
-          // Add +1 for each day after their last duty (including today)
+          // Calculate days from most recent duty date to TODAY
+          // If duty was today, daysSince = 0
+          // If duty was yesterday, daysSince = 1
+          // etc.
           const today = new Date();
           today.setHours(0, 0, 0, 0); // Normalize to start of day
           mostRecentDutyDate.setHours(0, 0, 0, 0);
           
-          // Calculate days: +1 for each day after last duty
+          // Calculate days: difference in days (0 if same day, 1 if yesterday, etc.)
           const daysSince = Math.floor((today - mostRecentDutyDate) / (1000 * 60 * 60 * 24));
           
           updates.push({

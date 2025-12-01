@@ -31,11 +31,17 @@ const FormsList = () => {
     try {
       await apiClient.delete(`/da6-forms/${id}`);
       
-      // Trigger recalculation on the server after deletion
-      await apiClient.post('/api/recalculate-days-since-duty');
+      // Try to trigger recalculation, but don't fail if it errors
+      // The recalculation will happen automatically when forms are saved/deleted
+      try {
+        await apiClient.post('/api/recalculate-days-since-duty');
+      } catch (recalcError) {
+        console.warn('Recalculation endpoint failed (this is expected if not implemented):', recalcError);
+        // Continue anyway - deletion succeeded
+      }
       
       fetchForms();
-      alert('Form deleted successfully. Days since last duty have been recalculated.');
+      alert('Form deleted successfully. Days since last duty will be recalculated automatically.');
     } catch (error) {
       console.error('Error deleting form:', error);
       alert('Error deleting form. Please try again.');
