@@ -998,8 +998,9 @@ const DA6Form = () => {
           const currentDaysSince = soldier.days_since_last_duty || 0;
           const periodStart = new Date(formData.period_start);
           periodStart.setHours(0, 0, 0, 0);
-          periodEnd.setHours(0, 0, 0, 0);
-          const daysInPeriod = Math.floor((periodEnd - periodStart) / (1000 * 60 * 60 * 24)) + 1;
+          const periodEndDate = new Date(periodEnd);
+          periodEndDate.setHours(0, 0, 0, 0);
+          const daysInPeriod = Math.floor((periodEndDate - periodStart) / (1000 * 60 * 60 * 24)) + 1;
           const newDaysSince = currentDaysSince + daysInPeriod;
           
           updates.push({
@@ -1115,6 +1116,10 @@ const DA6Form = () => {
         }
       });
       
+      // Get all soldiers BEFORE processing to preserve their existing days
+      const { data: soldiersData } = await apiClient.get('/soldiers');
+      const allSoldiers = soldiersData.soldiers || [];
+      
       // Track the most recent duty assignment for each soldier across all rosters
       const soldierLastDutyDate = {}; // { soldierId: Date }
       
@@ -1142,10 +1147,6 @@ const DA6Form = () => {
       today.setHours(0, 0, 0, 0); // Normalize to start of day
       const updates = [];
       
-      // Get all soldiers
-      const { data: soldiersData } = await apiClient.get('/soldiers');
-      const allSoldiers = soldiersData.soldiers || [];
-      
       for (const soldier of allSoldiers) {
         const lastDutyDate = soldierLastDutyDate[soldier.id];
         
@@ -1161,26 +1162,31 @@ const DA6Form = () => {
           });
         } else {
           // Soldier had no duty in any completed roster
-          // Calculate from the oldest roster's start date to today
-          const oldestRosterStart = completedForms.reduce((oldest, form) => {
-            const start = new Date(form.period_start);
-            start.setHours(0, 0, 0, 0);
-            return !oldest || start < oldest ? start : oldest;
-          }, null);
-          
-          if (oldestRosterStart) {
-            const daysSince = Math.floor((today - oldestRosterStart) / (1000 * 60 * 60 * 24));
-            updates.push({
-              soldierId: soldier.id,
-              daysSince: Math.max(0, daysSince)
-            });
-          } else {
-            // No rosters at all - set to 0
-            updates.push({
-              soldierId: soldier.id,
-              daysSince: 0
-            });
+          // Don't update their days - preserve their existing value
+          // They may have had duty before the oldest roster, or they may be new
+          // Only update if they have no value set (null/undefined)
+          if (soldier.days_since_last_duty === null || soldier.days_since_last_duty === undefined) {
+            // No value set - calculate from oldest roster start or set to 0
+            const oldestRosterStart = completedForms.reduce((oldest, form) => {
+              const start = new Date(form.period_start);
+              start.setHours(0, 0, 0, 0);
+              return !oldest || start < oldest ? start : oldest;
+            }, null);
+            
+            if (oldestRosterStart) {
+              const daysSince = Math.floor((today - oldestRosterStart) / (1000 * 60 * 60 * 24));
+              updates.push({
+                soldierId: soldier.id,
+                daysSince: Math.max(0, daysSince)
+              });
+            } else {
+              updates.push({
+                soldierId: soldier.id,
+                daysSince: 0
+              });
+            }
           }
+          // Otherwise, preserve their existing value (don't update)
         }
       }
       
@@ -1258,19 +1264,17 @@ const DA6Form = () => {
       if (id) {
         await apiClient.put(`/da6-forms/${id}`, payload);
         
-        // If form was completed and is being edited, or if completing, recalculate all
+        // If form was completed and is being edited, or if completing, update days
         if (wasCompleted || isCompleting) {
           setSaving(false);
           if (isCompleting) {
-            // First update based on this form
+            // Update based on this form only
             setUpdatingSoldiers(true);
             await updateSoldiersDaysSinceDuty();
             setUpdatingSoldiers(false);
           }
-          // Then recalculate from all completed rosters to ensure accuracy
-          setRecalculating(true);
-          await recalculateAllDaysSinceDuty();
-          setRecalculating(false);
+          // Don't recalculate all - that should only happen when forms are deleted
+          // The updateSoldiersDaysSinceDuty already handles this form correctly
           navigate(`/forms/${id}/view`);
         } else {
           setSaving(false);
@@ -1286,10 +1290,8 @@ const DA6Form = () => {
           setUpdatingSoldiers(true);
           await updateSoldiersDaysSinceDuty();
           setUpdatingSoldiers(false);
-          // Recalculate from all completed rosters to ensure accuracy
-          setRecalculating(true);
-          await recalculateAllDaysSinceDuty();
-          setRecalculating(false);
+          // Don't recalculate all - that should only happen when forms are deleted
+          // The updateSoldiersDaysSinceDuty already handles this form correctly
           navigate(`/forms/${data.form.id}/view`);
         } else {
           setSaving(false);
