@@ -16,8 +16,8 @@
     "duty-roster",
     "form-generator"
   ],
-  "author": "",
-  "license": "MIT",
+  "author": "Jacob Walker",
+  "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",

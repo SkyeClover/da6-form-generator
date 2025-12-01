@@ -41,11 +41,10 @@ cd client && npm install
 ```
 
 2. Set up Supabase:
-   - Follow the detailed guide in [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
-   - Create a Supabase project
-   - Run the database schema from `database/schema.sql`
-   - Configure Google OAuth
-   - Set up environment variables (see `.env.example` files)
+   - Create a Supabase project at [https://app.supabase.com](https://app.supabase.com)
+   - Run the database schema from `database/schema.sql` in the Supabase SQL Editor
+   - Configure Google OAuth in Supabase Dashboard → Authentication → Providers
+   - Set up environment variables (see below)
 
 ### Development
 
@@ -82,10 +81,9 @@ DA6 Form Gen/
 │   ├── config/                # Configuration files
 │   ├── middleware/            # Express middleware (auth)
 │   └── index.js
-├── database/                  # Database schema
+├── database/                  # Database schema and migrations
 │   └── schema.sql
 ├── package.json               # Root package.json
-├── SUPABASE_SETUP.md          # Supabase setup guide
 └── README.md
 ```
 
@@ -115,7 +113,24 @@ DA6 Form Gen/
 
 🚧 **In Development** - This project is currently under active development.
 
+## Environment Variables
+
+### Server (.env in root)
+```env
+PORT=5000
+NODE_ENV=development
+CLIENT_URL=http://localhost:3000
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+### Client (.env in client/)
+```env
+REACT_APP_SUPABASE_URL=your_supabase_project_url
+REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
 ## License
 
-MIT
+See [LICENSE](./LICENSE) file for details.
 

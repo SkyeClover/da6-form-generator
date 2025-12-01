@@ -24,11 +24,11 @@ const SetupRequired = () => {
 REACT_APP_SUPABASE_ANON_KEY=your_supabase_anon_key`}
               </pre>
             </li>
-            <li>Get these values from your Supabase project settings</li>
+            <li>Get these values from your Supabase project settings (Settings → API)</li>
             <li>Restart the development server</li>
           </ol>
           <p className="setup-note">
-            📖 See <code>SUPABASE_SETUP.md</code> in the project root for detailed instructions.
+            📖 Create a Supabase project at <a href="https://app.supabase.com" target="_blank" rel="noopener noreferrer">app.supabase.com</a> and run the database schema from <code>database/schema.sql</code>.
           </p>
         </div>
       </div>
