@@ -5,6 +5,7 @@ import Layout from './Layout';
 import BulkUpdateDays from './BulkUpdateDays';
 import SoldierProfile from './SoldierProfile';
 import Tooltip from './Tooltip';
+import LoadingScreen from './LoadingScreen';
 import './Soldiers.css';
 
 const Soldiers = () => {

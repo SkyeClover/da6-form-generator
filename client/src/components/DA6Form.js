@@ -8,12 +8,17 @@ import { getFederalHolidaysInRange } from '../utils/federalHolidays';
 import Layout from './Layout';
 import SoldierProfile from './SoldierProfile';
 import Tooltip from './Tooltip';
+import LoadingScreen from './LoadingScreen';
 import './DA6Form.css';
 
 const DA6Form = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(!!id);
+  const [saving, setSaving] = useState(false);
+  const [updatingSoldiers, setUpdatingSoldiers] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('Loading...');
   const [soldiers, setSoldiers] = useState([]);
   const [selectedSoldiers, setSelectedSoldiers] = useState(new Set());
   const [exceptions, setExceptions] = useState({}); // { soldierId: { date: exceptionCode } }
@@ -841,6 +846,7 @@ const DA6Form = () => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return;
     
     try {
+      setUpdatingSoldiers(true);
       const assignments = generateAssignments();
       const periodEnd = new Date(formData.period_end);
       const selectedSoldiersList = Array.from(selectedSoldiers);
@@ -1046,6 +1052,8 @@ const DA6Form = () => {
       console.error('Error updating days since last duty:', error);
       // Don't block form save if this fails, but log it
       alert('Warning: Could not update days since last duty. Form was saved, but soldier profiles may need manual update.');
+    } finally {
+      setUpdatingSoldiers(false);
     }
   };
 
@@ -1219,11 +1227,14 @@ const DA6Form = () => {
     } catch (error) {
       console.error('[Recalculate] Error recalculating days since last duty:', error);
       alert('Warning: Could not recalculate days since last duty. Please try again or update manually.');
+    } finally {
+      setRecalculating(false);
     }
   };
 
   const handleSave = async (status = 'draft') => {
     try {
+      setSaving(true);
       const wasCompleted = id && formData.status === 'completed';
       const isCompleting = status === 'completed';
       
@@ -1251,14 +1262,20 @@ const DA6Form = () => {
         
         // If form was completed and is being edited, or if completing, recalculate all
         if (wasCompleted || isCompleting) {
+          setSaving(false);
           if (isCompleting) {
             // First update based on this form
+            setUpdatingSoldiers(true);
             await updateSoldiersDaysSinceDuty();
+            setUpdatingSoldiers(false);
           }
           // Then recalculate from all completed rosters to ensure accuracy
+          setRecalculating(true);
           await recalculateAllDaysSinceDuty();
+          setRecalculating(false);
           navigate(`/forms/${id}/view`);
         } else {
+          setSaving(false);
           alert('Form saved successfully!');
           navigate('/forms');
         }
@@ -1267,16 +1284,25 @@ const DA6Form = () => {
         
         // Update days since last duty when form is completed
         if (status === 'completed') {
+          setSaving(false);
+          setUpdatingSoldiers(true);
           await updateSoldiersDaysSinceDuty();
+          setUpdatingSoldiers(false);
           // Recalculate from all completed rosters to ensure accuracy
+          setRecalculating(true);
           await recalculateAllDaysSinceDuty();
+          setRecalculating(false);
           navigate(`/forms/${data.form.id}/view`);
         } else {
+          setSaving(false);
           navigate(`/forms/${data.form.id}`);
         }
       }
     } catch (error) {
       console.error('Error saving form:', error);
+      setSaving(false);
+      setUpdatingSoldiers(false);
+      setRecalculating(false);
       alert('Error saving form. Please try again.');
     }
   };
@@ -1868,7 +1894,19 @@ const DA6Form = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading form...</div>;
+    return <LoadingScreen message="Loading form..." />;
+  }
+  
+  if (saving) {
+    return <LoadingScreen message="Saving form..." subMessage="Please wait while we save your changes." />;
+  }
+  
+  if (updatingSoldiers) {
+    return <LoadingScreen message="Updating soldier records..." subMessage="Calculating days since last duty for all soldiers." />;
+  }
+  
+  if (recalculating) {
+    return <LoadingScreen message="Recalculating duty history..." subMessage="This may take a moment for large rosters." />;
   }
 
   return (

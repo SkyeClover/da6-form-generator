@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../utils/api';
 import Layout from './Layout';
+import LoadingScreen from './LoadingScreen';
 import './FormsList.css';
 
 const FormsList = () => {
@@ -66,7 +67,7 @@ const FormsList = () => {
   };
 
   if (loading) {
-    return <div className="loading">Loading forms...</div>;
+    return <LoadingScreen message="Loading forms..." />;
   }
 
   return (
