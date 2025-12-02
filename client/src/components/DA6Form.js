@@ -1397,6 +1397,22 @@ const DA6Form = () => {
         allAssignmentsByDate[dateStr] = {};
       }
       
+      // Pre-calculate "days since last duty" for ALL soldiers at the START of this day
+      // This ensures all forms use the same baseline when selecting soldiers
+      const daysSinceLastDutySnapshot = {}; // { soldierId: { formId: daysSince } }
+      forms.forEach(form => {
+        const formConfig = form.form_data?.duty_config || form.duty_config || {};
+        const formSelectedSoldiers = form.form_data?.selected_soldiers || form.selectedSoldiers || [];
+        formSelectedSoldiers.forEach(soldierId => {
+          const soldier = soldiers.find(s => s.id === soldierId);
+          if (!soldier) return;
+          if (!daysSinceLastDutySnapshot[soldierId]) {
+            daysSinceLastDutySnapshot[soldierId] = {};
+          }
+          daysSinceLastDutySnapshot[soldierId][form.id] = getDaysSinceLastDuty(soldier, current, formConfig);
+        });
+      });
+      
       // Sort forms by priority: forms with more specific requirements first
       // This ensures forms with rank requirements get priority over simple forms
       const sortedForms = [...forms].sort((a, b) => {
@@ -1465,9 +1481,15 @@ const DA6Form = () => {
             );
             
             // Sort by days since last duty (most days first)
+            // Use snapshot from start of day, but also check if soldier was already assigned today
             matchingSoldiers.sort((a, b) => {
-              const aDaysSince = getDaysSinceLastDuty(a, current, formConfig);
-              const bDaysSince = getDaysSinceLastDuty(b, current, formConfig);
+              // If soldier was already assigned today in another form, they have 0 days since last duty
+              const aAlreadyAssigned = alreadyAssignedToday.has(a.id);
+              const bAlreadyAssigned = alreadyAssignedToday.has(b.id);
+              
+              const aDaysSince = aAlreadyAssigned ? 0 : (daysSinceLastDutySnapshot[a.id]?.[form.id] ?? getDaysSinceLastDuty(a, current, formConfig));
+              const bDaysSince = bAlreadyAssigned ? 0 : (daysSinceLastDutySnapshot[b.id]?.[form.id] ?? getDaysSinceLastDuty(b, current, formConfig));
+              
               if (aDaysSince !== bDaysSince) {
                 return bDaysSince - aDaysSince;
               }
@@ -1495,7 +1517,9 @@ const DA6Form = () => {
             for (const soldier of matchingSoldiers) {
               if (selectedForRequirement >= quantity || selectedForForm.length >= soldiersPerDay) break;
               
-              const daysSince = getDaysSinceLastDuty(soldier, current, formConfig);
+              // Use snapshot from start of day, but check if soldier was already assigned today
+              const alreadyAssigned = alreadyAssignedToday.has(soldier.id);
+              const daysSince = alreadyAssigned ? 0 : (daysSinceLastDutySnapshot[soldier.id]?.[form.id] ?? getDaysSinceLastDuty(soldier, current, formConfig));
               
               // Check days off
               if (daysSince <= daysOffAfterDuty) continue;
@@ -1540,17 +1564,21 @@ const DA6Form = () => {
               selectedForForm.push(soldier.id);
               selectedForRequirement++;
               
+              // Mark as assigned for other forms on this day
+              alreadyAssignedToday.add(soldier.id);
+              
               // Update last assignment date
               lastAssignmentMap[soldier.id] = dateStr;
             }
           }
         } else {
           // No rank requirements - simple selection
+          // Use snapshot from start of day for consistent prioritization
           const candidates = availableSoldiers
             .filter(s => !alreadyAssignedToday.has(s.id))
             .map(soldier => ({
               soldier,
-              daysSince: getDaysSinceLastDuty(soldier, current, formConfig)
+              daysSince: daysSinceLastDutySnapshot[soldier.id]?.[form.id] ?? getDaysSinceLastDuty(soldier, current, formConfig)
             }))
             .filter(c => c.daysSince > daysOffAfterDuty)
             .sort((a, b) => {
@@ -1568,6 +1596,11 @@ const DA6Form = () => {
           for (const { soldier } of candidates) {
             if (selectedForForm.length >= soldiersPerDay) break;
             selectedForForm.push(soldier.id);
+            
+            // Mark as assigned for other forms on this day
+            alreadyAssignedToday.add(soldier.id);
+            
+            // Update last assignment date
             lastAssignmentMap[soldier.id] = dateStr;
           }
         }
