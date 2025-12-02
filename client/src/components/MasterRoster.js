@@ -50,8 +50,12 @@ const MasterRoster = () => {
                fEnd.getTime() === targetEnd.getTime();
       });
       
-      // Sort by unit_name for consistent display
-      matchingForms.sort((a, b) => (a.unit_name || '').localeCompare(b.unit_name || ''));
+      // Sort by duty name for consistent display
+      matchingForms.sort((a, b) => {
+        const aDuty = a.form_data?.duty_config?.nature_of_duty || 'Duty';
+        const bDuty = b.form_data?.duty_config?.nature_of_duty || 'Duty';
+        return aDuty.localeCompare(bDuty);
+      });
       
       setForms(matchingForms);
     } catch (error) {
@@ -125,11 +129,11 @@ const MasterRoster = () => {
 
   // Build consolidated assignments map from all forms
   const buildConsolidatedAssignments = () => {
-    const consolidated = {}; // { soldierId: { dateStr: { assignments: [{ formId, formName, duty, exception_code }] } } }
+    const consolidated = {}; // { soldierId: { dateStr: { assignments: [{ formId, dutyName, duty, exception_code }] } } }
     
     forms.forEach(form => {
       const formAssignments = form.form_data?.assignments || [];
-      const formName = form.unit_name || form.id;
+      const dutyName = form.form_data?.duty_config?.nature_of_duty || 'Duty';
       const formId = form.id;
       
       formAssignments.forEach(assignment => {
@@ -150,10 +154,10 @@ const MasterRoster = () => {
         
         consolidated[soldierId][dateStr].assignments.push({
           formId,
-          formName,
+          dutyName,
           duty: assignment.duty,
           exception_code: assignment.exception_code,
-          nature_of_duty: form.form_data?.duty_config?.nature_of_duty || 'Duty'
+          nature_of_duty: dutyName
         });
       });
     });
@@ -253,17 +257,20 @@ const MasterRoster = () => {
           <div className="forms-list">
             <h3>Forms in this Master Roster:</h3>
             <ul>
-              {forms.map(form => (
-                <li key={form.id}>
-                  <strong>{form.unit_name || form.id}</strong> - {form.form_data?.duty_config?.nature_of_duty || 'Duty'}
-                  <button 
-                    className="btn-link"
-                    onClick={() => navigate(`/forms/${form.id}/view`)}
-                  >
-                    View
-                  </button>
-                </li>
-              ))}
+              {forms.map(form => {
+                const dutyName = form.form_data?.duty_config?.nature_of_duty || 'Duty';
+                return (
+                  <li key={form.id}>
+                    <strong>{dutyName}</strong> ({form.unit_name || form.id})
+                    <button 
+                      className="btn-link"
+                      onClick={() => navigate(`/forms/${form.id}/view`)}
+                    >
+                      View
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
@@ -318,14 +325,14 @@ const MasterRoster = () => {
                                     <div
                                       key={idx}
                                       className={`master-duty-item ${isDuty ? 'duty' : 'exception'} ${exceptionCode ? `exception-${exceptionCode.toLowerCase()}` : ''}`}
-                                      title={`${assignment.formName}: ${assignment.nature_of_duty || 'Duty'}`}
+                                      title={`${assignment.dutyName || assignment.nature_of_duty || 'Duty'}`}
                                     >
                                       {isDuty ? (
                                         <span className="duty-checkmark">✓</span>
                                       ) : exceptionCode ? (
                                         <span className="exception-code">{exceptionCode}</span>
                                       ) : null}
-                                      <span className="form-indicator">{assignment.formName}</span>
+                                      <span className="form-indicator">{assignment.dutyName || assignment.nature_of_duty || 'Duty'}</span>
                                     </div>
                                   );
                                 })}
@@ -365,7 +372,7 @@ const MasterRoster = () => {
                           <span className="compact-date">{formatDateShort(date)}:</span>
                           {assignments.map((assignment, idx) => (
                             <span key={idx} className="compact-assignment">
-                              {assignment.formName} - {assignment.duty && !assignment.exception_code ? '✓' : assignment.exception_code || '—'}
+                              {assignment.dutyName || assignment.nature_of_duty || 'Duty'} - {assignment.duty && !assignment.exception_code ? '✓' : assignment.exception_code || '—'}
                             </span>
                           ))}
                         </div>
