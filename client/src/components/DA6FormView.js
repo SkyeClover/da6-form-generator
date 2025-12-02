@@ -14,6 +14,7 @@ const DA6FormView = () => {
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'compact'
   const [soldierAppointments, setSoldierAppointments] = useState({}); // { soldierId: [appointments] }
   const [otherForms, setOtherForms] = useState([]); // For cross-roster checking
+  const [assignmentsMap, setAssignmentsMap] = useState({}); // { soldierId: { dateStr: assignment } }
 
   useEffect(() => {
     fetchForm();
@@ -114,12 +115,18 @@ const DA6FormView = () => {
     }
   };
 
-  // Create appointments from generated assignments
+  // Create appointments from stored assignments (not regenerated)
   const createAppointmentsFromAssignments = async () => {
     if (!form || !form.id || !form.form_data) return;
     
     try {
-      const assignmentsMap = generateAssignmentsMap();
+      // Use stored assignments from form data (source of truth)
+      const storedAssignments = form.form_data.assignments || [];
+      if (storedAssignments.length === 0) {
+        console.log('[Appointment Sync] No stored assignments found, skipping appointment creation');
+        return;
+      }
+      
       const dutyType = form.form_data.duty_config?.nature_of_duty || 'Duty';
       const selectedSoldiers = form.form_data.selected_soldiers || [];
       
@@ -127,18 +134,8 @@ const DA6FormView = () => {
       const soldierDutyRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
       const soldierDaysOffRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
       
-      // Convert assignmentsMap to flat array format
-      const assignments = [];
-      Object.entries(assignmentsMap).forEach(([soldierId, dateAssignments]) => {
-        Object.entries(dateAssignments).forEach(([dateStr, assignment]) => {
-          assignments.push({
-            soldier_id: soldierId,
-            date: dateStr,
-            duty: assignment.duty,
-            exception_code: assignment.exception_code
-          });
-        });
-      });
+      // Use stored assignments directly
+      const assignments = storedAssignments;
       
       assignments.forEach(assignment => {
         if (!assignment.soldier_id) return;
@@ -1260,32 +1257,33 @@ const DA6FormView = () => {
     return map;
   };
 
-  // Memoize assignments map - use form ID and updated_at only (not soldiers, as they may change)
-  const assignmentsMapRef = useRef({});
-  const assignmentsMapKey = form 
-    ? `${form.id}-${form.updated_at || form.created_at}` 
-    : null;
-  
-  if (!assignmentsMapRef.current[assignmentsMapKey] && form) {
+  // Build assignments map from stored assignments when form loads
+  // Use state instead of ref so it triggers re-render when updated
+  useEffect(() => {
+    if (!form) {
+      setAssignmentsMap({});
+      return;
+    }
+    
     // First try to use stored assignments (source of truth)
     const storedMap = buildAssignmentsMapFromStored();
     
     if (Object.keys(storedMap).length > 0) {
       // Use stored assignments
-      assignmentsMapRef.current[assignmentsMapKey] = storedMap;
-      console.log('[Assignments Map] Using stored assignments from form data');
+      setAssignmentsMap(storedMap);
+      console.log('[Assignments Map] Using stored assignments from form data', {
+        assignmentsCount: Object.keys(storedMap).length,
+        totalAssignments: Object.values(storedMap).reduce((sum, dates) => sum + Object.keys(dates).length, 0)
+      });
     } else if (soldiers.length > 0) {
       // Fallback: regenerate if no stored assignments exist
-      assignmentsMapRef.current[assignmentsMapKey] = {};
       const generatedMap = generateAssignmentsMap();
-      assignmentsMapRef.current[assignmentsMapKey] = generatedMap;
+      setAssignmentsMap(generatedMap);
       console.log('[Assignments Map] Generated assignments (no stored assignments found)');
     } else {
-      assignmentsMapRef.current[assignmentsMapKey] = {};
+      setAssignmentsMap({});
     }
-  }
-  
-  const assignmentsMap = assignmentsMapRef.current[assignmentsMapKey] || {};
+  }, [form?.id, form?.updated_at, form?.created_at, form?.form_data?.assignments?.length, soldiers.length]);
 
   // Helper function to generate assignments for another form (for cross-roster checking)
   // This generates assignments dynamically using the other form's form_data
@@ -1568,18 +1566,12 @@ const DA6FormView = () => {
       return null;
     }
     
-    // First check appointments - appointments override stored assignments
-    if (isSoldierUnavailableOnDate(soldierId, date)) {
-      const unavailability = getUnavailabilityReason(soldierId, date);
-      if (unavailability && unavailability.exceptionCode) {
-        return {
-          exception_code: unavailability.exceptionCode,
-          duty: false
-        };
-      }
+    // PRIORITY 1: Check assignments map (stored assignments from form) - this is the source of truth
+    if (assignmentsMap[soldierId] && assignmentsMap[soldierId][dateStr]) {
+      return assignmentsMap[soldierId][dateStr];
     }
     
-    // Check for cross-roster conflicts if cross-roster checking was enabled
+    // PRIORITY 2: Check for cross-roster conflicts if cross-roster checking was enabled
     // Use cached assignments instead of regenerating on every call
     if (cachedOtherFormData) {
       const selectedRostersForCheck = form.form_data.selected_rosters_for_check || [];
@@ -1612,9 +1604,16 @@ const DA6FormView = () => {
       }
     }
     
-    // Check assignments map (stored assignments from form)
-    if (assignmentsMap[soldierId] && assignmentsMap[soldierId][dateStr]) {
-      return assignmentsMap[soldierId][dateStr];
+    // PRIORITY 3: Check appointments - only if no stored assignment exists
+    // This is for appointments that might exist but aren't in the stored assignments
+    if (isSoldierUnavailableOnDate(soldierId, date)) {
+      const unavailability = getUnavailabilityReason(soldierId, date);
+      if (unavailability && unavailability.exceptionCode) {
+        return {
+          exception_code: unavailability.exceptionCode,
+          duty: false
+        };
+      }
     }
     
     return null;
