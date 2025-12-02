@@ -544,7 +544,7 @@ const DA6Form = () => {
     return true;
   };
 
-  const generateAssignments = () => {
+  const generateAssignments = (crossRosterData = null) => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return [];
     
     const assignments = [];
@@ -558,6 +558,24 @@ const DA6Form = () => {
     const separateHolidayCycle = formData.duty_config.separate_holiday_cycle || false;
     const rankRequirements = formData.duty_config.rank_requirements?.requirements || [];
     const globalExclusions = formData.duty_config.rank_requirements?.exclusions || { ranks: [], groups: [] };
+    
+    // Helper to check if soldier has duty in cross-roster forms on a specific date
+    const hasCrossRosterDutyOnDate = (soldierId, dateStr) => {
+      if (!crossRosterData || !crossRosterCheckEnabled || selectedRostersForCheck.size === 0) {
+        return false;
+      }
+      
+      for (const formId of selectedRostersForCheck) {
+        const otherFormAssignmentsMap = crossRosterData.assignments?.[formId];
+        if (!otherFormAssignmentsMap) continue;
+        
+        const soldierAssignments = otherFormAssignmentsMap[soldierId];
+        if (soldierAssignments?.[dateStr]?.duty === true) {
+          return true;
+        }
+      }
+      return false;
+    };
     
     // Build a map of the most recent duty date for each soldier from completed forms
     // This is used to properly calculate days since last duty and check days off
@@ -825,7 +843,7 @@ const DA6Form = () => {
                   const previousDateStr = previousDate.toISOString().split('T')[0];
                   
                   // Check if soldier had a duty appointment (CQ, SD, D) on the previous day
-                  const hadDuty = appointments.some(apt => {
+                  const hadDutyFromAppointment = appointments.some(apt => {
                     const start = new Date(apt.start_date);
                     const end = new Date(apt.end_date);
                     const checkDate = new Date(previousDateStr);
@@ -839,8 +857,14 @@ const DA6Form = () => {
                     return false;
                   });
                   
-                  if (hadDuty) {
+                  // Also check cross-roster assignments for duty on previous day
+                  const hadDutyFromCrossRoster = hasCrossRosterDutyOnDate(soldier.id, previousDateStr);
+                  
+                  if (hadDutyFromAppointment || hadDutyFromCrossRoster) {
                     hadDutyPreviousDay = true;
+                    if (hadDutyFromCrossRoster) {
+                      console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have cross-roster duty on ${previousDateStr} (previous day)`);
+                    }
                     break;
                   }
                 }
@@ -874,9 +898,16 @@ const DA6Form = () => {
                   return false;
                 });
                 
-                if (conflictingAppointment) {
+                // Also check cross-roster assignments for duty on next day (days off period)
+                const hasDutyFromCrossRoster = hasCrossRosterDutyOnDate(soldier.id, nextDateStr);
+                
+                if (conflictingAppointment || hasDutyFromCrossRoster) {
                   hasDutyOnDaysOff = true;
-                  console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
+                  if (hasDutyFromCrossRoster) {
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have cross-roster duty on ${nextDateStr} (day off day)`);
+                  } else {
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
+                  }
                   break;
                 }
               }
@@ -1052,7 +1083,7 @@ const DA6Form = () => {
                 const previousDateStr = previousDate.toISOString().split('T')[0];
                 
                 // Check if soldier had a duty appointment (CQ, SD, D) on the previous day
-                const hadDuty = appointments.some(apt => {
+                const hadDutyFromAppointment = appointments.some(apt => {
                   const start = new Date(apt.start_date);
                   const end = new Date(apt.end_date);
                   const checkDate = new Date(previousDateStr);
@@ -1066,8 +1097,14 @@ const DA6Form = () => {
                   return false;
                 });
                 
-                if (hadDuty) {
+                // Also check cross-roster assignments for duty on previous day
+                const hadDutyFromCrossRoster = hasCrossRosterDutyOnDate(soldier.id, previousDateStr);
+                
+                if (hadDutyFromAppointment || hadDutyFromCrossRoster) {
                   hadDutyPreviousDay = true;
+                  if (hadDutyFromCrossRoster) {
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have cross-roster duty on ${previousDateStr} (previous day)`);
+                  }
                   break;
                 }
               }
@@ -1101,9 +1138,16 @@ const DA6Form = () => {
                   return false;
                 });
                 
-                if (conflictingAppointment) {
+                // Also check cross-roster assignments for duty on next day (days off period)
+                const hasDutyFromCrossRoster = hasCrossRosterDutyOnDate(soldier.id, nextDateStr);
+                
+                if (conflictingAppointment || hasDutyFromCrossRoster) {
                   hasDutyOnDaysOff = true;
-                  console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
+                  if (hasDutyFromCrossRoster) {
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have cross-roster duty on ${nextDateStr} (day off day)`);
+                  } else {
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
+                  }
                   break;
                 }
               }
@@ -1196,7 +1240,9 @@ const DA6Form = () => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return;
     
     try {
-      const assignments = generateAssignments();
+      // Use cached cross-roster data if available
+      const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+      const assignments = generateAssignments(crossRosterDataForGeneration);
       const dutyType = formData.duty_config?.nature_of_duty || 'Duty';
       
       // Group duty assignments and days-off by soldier and date ranges
@@ -1524,7 +1570,9 @@ const DA6Form = () => {
     
     try {
       setUpdatingSoldiers(true);
-      const assignments = generateAssignments();
+      // Use cached cross-roster data if available
+      const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+      const assignments = generateAssignments(crossRosterDataForGeneration);
       const periodEnd = new Date(formData.period_end);
       const selectedSoldiersList = Array.from(selectedSoldiers);
       
@@ -1743,7 +1791,9 @@ const DA6Form = () => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0 || !cancelledDate) return;
     
     try {
-      const assignments = generateAssignments();
+      // Use cached cross-roster data if available
+      const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+      const assignments = generateAssignments(crossRosterDataForGeneration);
       const cancelledDateObj = new Date(cancelledDate);
       cancelledDateObj.setHours(0, 0, 0, 0);
       
@@ -2094,7 +2144,9 @@ const DA6Form = () => {
       }
       
       // Generate assignments to store in form data (needed for view page)
-      const assignments = generateAssignments();
+      // Use cached cross-roster data if available
+      const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+      const assignments = generateAssignments(crossRosterDataForGeneration);
       
       const payload = {
         unit_name: formData.unit_name,
@@ -2391,9 +2443,40 @@ const DA6Form = () => {
 
   // Helper function to generate assignments for another form (for cross-roster checking)
   // Must be defined before it's used in memoization
-  // This generates assignments dynamically using the other form's form_data
+  // PREFERS stored assignments if available, otherwise regenerates from form_data
   const generateAssignmentsForOtherForm = (otherForm) => {
     if (!otherForm?.form_data || !otherForm.period_start || !otherForm.period_end) return {};
+    
+    // FIRST: Try to use stored assignments (source of truth)
+    const storedAssignments = otherForm.form_data.assignments || [];
+    if (storedAssignments.length > 0) {
+      const assignmentsMap = {};
+      storedAssignments.forEach(assignment => {
+        if (!assignment.soldier_id || !assignment.date) return;
+        
+        // Only include actual duty assignments (not exceptions like 'P')
+        if (assignment.duty && !assignment.exception_code) {
+          if (!assignmentsMap[assignment.soldier_id]) {
+            assignmentsMap[assignment.soldier_id] = {};
+          }
+          assignmentsMap[assignment.soldier_id][assignment.date] = { 
+            duty: true, 
+            exception_code: null 
+          };
+        }
+      });
+      
+      // Only return stored assignments if we found any duty assignments
+      const dutyAssignmentCount = Object.values(assignmentsMap).reduce((sum, dates) => sum + Object.keys(dates).length, 0);
+      if (dutyAssignmentCount > 0) {
+        console.log(`[Cross-Roster] Using ${dutyAssignmentCount} stored duty assignment(s) from form ${otherForm.id}`);
+        return assignmentsMap;
+      }
+    }
+    
+    // FALLBACK: Regenerate assignments if no stored assignments found
+    // This should only happen for very old forms or forms that haven't been saved with assignments
+    console.log(`[Cross-Roster] No stored assignments found for form ${otherForm.id}, regenerating...`);
     
     const assignmentsMap = {}; // { soldierId: { dateStr: assignment } }
     const start = new Date(otherForm.period_start);
@@ -2627,19 +2710,8 @@ const DA6Form = () => {
     return assignmentsMap;
   };
 
-  // Generate assignments once and memoize for days-off checking
-  const generatedAssignmentsRef = useRef(null);
-  const assignmentsKey = `${formData.period_start}-${formData.period_end}-${Array.from(selectedSoldiers).join(',')}-${JSON.stringify(formData.duty_config)}-${JSON.stringify(exceptions)}`;
-  
-  if (!generatedAssignmentsRef.current || generatedAssignmentsRef.current.key !== assignmentsKey) {
-    generatedAssignmentsRef.current = {
-      key: assignmentsKey,
-      assignments: generateAssignments()
-    };
-  }
-  const generatedAssignments = generatedAssignmentsRef.current.assignments;
-
   // Memoize other form assignments for cross-roster checking
+  // Generate this FIRST so it can be passed to generateAssignments
   const otherFormAssignmentsRef = useRef({});
   const otherFormsKey = otherForms.length > 0 
     ? otherForms.map(f => `${f.id}-${f.updated_at || ''}`).sort().join(',')
@@ -2650,6 +2722,7 @@ const DA6Form = () => {
   
   // Pre-generate assignments for all other forms once
   // Force regeneration when cross-roster checking is enabled or rosters change
+  let cachedOtherFormData = null;
   if (crossRosterCheckEnabled && selectedRostersForCheck.size > 0 && otherForms.length > 0) {
     // Always regenerate to ensure we have the latest data
     const otherFormAssignmentsMap = {};
@@ -2686,19 +2759,34 @@ const DA6Form = () => {
       }
     });
     
-    otherFormAssignmentsRef.current[crossRosterKey] = {
+    cachedOtherFormData = {
       assignments: otherFormAssignmentsMap,
       dutyTypes: otherFormDutyTypes
     };
     
+    otherFormAssignmentsRef.current[crossRosterKey] = cachedOtherFormData;
+    
     console.log(`[Cross-Roster] Cache updated with key: ${crossRosterKey}`);
   } else {
-    console.log(`[Cross-Roster] Skipping generation - enabled: ${crossRosterCheckEnabled}, rosters: ${selectedRostersForCheck.size}, forms: ${otherForms.length}`);
+    // Try to use cached data if available
+    cachedOtherFormData = otherFormAssignmentsRef.current[crossRosterKey] || null;
+    if (!cachedOtherFormData) {
+      console.log(`[Cross-Roster] Skipping generation - enabled: ${crossRosterCheckEnabled}, rosters: ${selectedRostersForCheck.size}, forms: ${otherForms.length}`);
+    }
   }
+
+  // Generate assignments once and memoize for days-off checking
+  // Include cross-roster key in assignments key to ensure regeneration when cross-roster data changes
+  const generatedAssignmentsRef = useRef(null);
+  const assignmentsKey = `${formData.period_start}-${formData.period_end}-${Array.from(selectedSoldiers).join(',')}-${JSON.stringify(formData.duty_config)}-${JSON.stringify(exceptions)}-${crossRosterKey || 'none'}`;
   
-  const cachedOtherFormData = crossRosterCheckEnabled && selectedRostersForCheck.size > 0 && otherForms.length > 0
-    ? otherFormAssignmentsRef.current[crossRosterKey]
-    : null;
+  if (!generatedAssignmentsRef.current || generatedAssignmentsRef.current.key !== assignmentsKey) {
+    generatedAssignmentsRef.current = {
+      key: assignmentsKey,
+      assignments: generateAssignments(cachedOtherFormData)
+    };
+  }
+  const generatedAssignments = generatedAssignmentsRef.current.assignments;
 
   const getExceptionForDate = (soldierId, date) => {
     // First check user-defined exceptions (these take precedence)
