@@ -1099,7 +1099,7 @@ const DA6Form = () => {
               return soldier.days_since_last_duty || 0;
             };
             
-            // Sort by days since last duty (MOST days first - PRIMARY), then rank order, then alphabetical
+            // Sort by days since last duty (MOST days first - PRIMARY), then by number of assignments in this period (fewest first), then rank order, then alphabetical
             soldiersWithLastDate.sort((a, b) => {
               // PRIMARY: Days since last duty (most days first)
               const aDaysSince = getDaysSinceLastDuty(a.soldier);
@@ -1108,7 +1108,14 @@ const DA6Form = () => {
                 return bDaysSince - aDaysSince; // Descending (most days first)
               }
               
-              // SECONDARY: Rank order (lower rank first)
+              // SECONDARY: Number of assignments in this period (fewest first) - ensures rotation when days are equal
+              const aAssignmentCount = assignments.filter(ass => ass.soldier_id === a.soldier.id && ass.duty && !ass.exception_code).length;
+              const bAssignmentCount = assignments.filter(ass => ass.soldier_id === b.soldier.id && ass.duty && !ass.exception_code).length;
+              if (aAssignmentCount !== bAssignmentCount) {
+                return aAssignmentCount - bAssignmentCount; // Ascending (fewest assignments first)
+              }
+              
+              // TERTIARY: Rank order (lower rank first)
               const aRank = a.soldier.rank?.toUpperCase().trim();
               const bRank = b.soldier.rank?.toUpperCase().trim();
               const aRankOrder = getRankOrder(aRank);
@@ -1117,7 +1124,7 @@ const DA6Form = () => {
                 return aRankOrder - bRankOrder;
               }
               
-              // TERTIARY: Alphabetical by last name, then first name
+              // QUATERNARY: Alphabetical by last name, then first name
               const aLastName = (a.soldier.last_name || '').toLowerCase();
               const bLastName = (b.soldier.last_name || '').toLowerCase();
               if (aLastName !== bLastName) {
