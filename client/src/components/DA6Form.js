@@ -131,6 +131,76 @@ const DA6Form = () => {
   // This runs whenever relevant data changes to ensure exceptions are always up-to-date
   const selectedRostersForCheckKey = Array.from(selectedRostersForCheck).sort().join(',');
   
+  // Pre-generate cross-roster assignments in a useEffect to avoid running on every render
+  const otherFormAssignmentsRef = useRef({});
+  
+  useEffect(() => {
+    if (
+      crossRosterCheckEnabled &&
+      selectedRostersForCheck.size > 0 &&
+      otherForms.length > 0 &&
+      formData.period_start &&
+      formData.period_end
+    ) {
+      const otherFormsKey = otherForms.length > 0 
+        ? otherForms.map(f => `${f.id}-${f.updated_at || ''}`).sort().join(',')
+        : '';
+      const crossRosterKey = `${otherFormsKey}-${Array.from(selectedRostersForCheck).sort().join(',')}`;
+      
+      // Only regenerate if cache key changed
+      if (!otherFormAssignmentsRef.current[crossRosterKey]) {
+        const otherFormAssignmentsMap = {};
+        const otherFormDutyTypes = {};
+        
+        console.log(`[Cross-Roster] Generating assignments for ${selectedRostersForCheck.size} selected roster(s)`);
+        
+        selectedRostersForCheck.forEach(formId => {
+          const otherForm = otherForms.find(f => f.id === formId);
+          if (otherForm) {
+            console.log(`[Cross-Roster] Processing form ${formId}: ${otherForm.unit_name}`);
+            console.log(`[Cross-Roster] Form has ${otherForm.form_data?.assignments?.length || 0} stored assignments`);
+            
+            const assignments = generateAssignmentsForOtherForm(otherForm);
+            otherFormAssignmentsMap[formId] = assignments;
+            otherFormDutyTypes[formId] = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
+            
+            // Debug logging
+            const assignmentCount = Object.values(assignments).reduce((sum, soldierDates) => {
+              return sum + Object.keys(soldierDates).length;
+            }, 0);
+            console.log(`[Cross-Roster] Form ${formId} (${otherForm.unit_name}): ${assignmentCount} duty assignments found`);
+            
+            // Log sample assignments
+            if (assignmentCount > 0) {
+              const sampleEntries = Object.entries(assignments).slice(0, 3);
+              sampleEntries.forEach(([soldierId, dates]) => {
+                const dateStrs = Object.keys(dates).slice(0, 5);
+                console.log(`[Cross-Roster]   Soldier ${soldierId}: ${dateStrs.join(', ')}`);
+              });
+            }
+          } else {
+            console.warn(`[Cross-Roster] Form ${formId} not found in otherForms`);
+          }
+        });
+        
+        otherFormAssignmentsRef.current[crossRosterKey] = {
+          assignments: otherFormAssignmentsMap,
+          dutyTypes: otherFormDutyTypes
+        };
+        
+        console.log(`[Cross-Roster] Cache updated with key: ${crossRosterKey}`);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    crossRosterCheckEnabled,
+    selectedRostersForCheck.size,
+    selectedRostersForCheckKey,
+    otherForms.length,
+    formData.period_start,
+    formData.period_end
+  ]);
+  
   useEffect(() => {
     if (
       crossRosterCheckEnabled &&
@@ -140,7 +210,7 @@ const DA6Form = () => {
       formData.period_end &&
       selectedSoldiers.size > 0
     ) {
-      // Run immediately to populate exceptions before assignments are generated
+      // Run after cross-roster assignments are cached to populate exceptions
       // The assignments key includes exceptions, so when exceptions update, assignments will regenerate
       autoPopulateExceptionsFromCrossRoster();
     }
@@ -2916,16 +2986,26 @@ const DA6Form = () => {
           }
           
           // Then, check each selected roster for conflicts
-          for (const formId of selectedRostersForCheck) {
-            const otherForm = otherForms.find(f => f.id === formId);
-            if (!otherForm || !otherForm.form_data) continue;
-            
-            // Generate assignments for the other form to see actual duty assignments
-            const otherFormAssignmentsMap = generateAssignmentsForOtherForm(otherForm);
-            const otherFormDutyType = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
-            
-            // Check if soldier is assigned duty on this date in the other roster
-            const hasDutyAssignment = otherFormAssignmentsMap[soldierId]?.[dateStr]?.duty === true;
+          // Use cached assignments instead of regenerating
+          const otherFormsKeyForExceptions = otherForms.length > 0 
+            ? otherForms.map(f => `${f.id}-${f.updated_at || ''}`).sort().join(',')
+            : '';
+          const crossRosterKeyForExceptions = `${otherFormsKeyForExceptions}-${Array.from(selectedRostersForCheck).sort().join(',')}`;
+          const cachedCrossRosterData = otherFormAssignmentsRef.current[crossRosterKeyForExceptions];
+          
+          if (cachedCrossRosterData) {
+            for (const formId of selectedRostersForCheck) {
+              const otherForm = otherForms.find(f => f.id === formId);
+              if (!otherForm || !otherForm.form_data) continue;
+              
+              // Use cached assignments instead of regenerating
+              const otherFormAssignmentsMap = cachedCrossRosterData.assignments?.[formId];
+              const otherFormDutyType = cachedCrossRosterData.dutyTypes?.[formId] || otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
+              
+              if (!otherFormAssignmentsMap) continue;
+              
+              // Check if soldier is assigned duty on this date in the other roster
+              const hasDutyAssignment = otherFormAssignmentsMap[soldierId]?.[dateStr]?.duty === true;
             
             if (hasDutyAssignment) {
               // Determine appropriate exception code based on other form's duty type
@@ -2958,6 +3038,7 @@ const DA6Form = () => {
                 }
               }
             }
+          }
           }
         }
         
@@ -3269,9 +3350,7 @@ const DA6Form = () => {
     return assignmentsMap;
   };
 
-  // Memoize other form assignments for cross-roster checking
-  // Generate this FIRST so it can be passed to generateAssignments
-  const otherFormAssignmentsRef = useRef({});
+  // Get cached cross-roster assignments (generated in useEffect above)
   const otherFormsKey = otherForms.length > 0 
     ? otherForms.map(f => `${f.id}-${f.updated_at || ''}`).sort().join(',')
     : '';
@@ -3279,60 +3358,10 @@ const DA6Form = () => {
     ? `${otherFormsKey}-${Array.from(selectedRostersForCheck).sort().join(',')}`
     : '';
   
-  // Pre-generate assignments for all other forms once
-  // Force regeneration when cross-roster checking is enabled or rosters change
-  let cachedOtherFormData = null;
-  if (crossRosterCheckEnabled && selectedRostersForCheck.size > 0 && otherForms.length > 0) {
-    // Always regenerate to ensure we have the latest data
-    const otherFormAssignmentsMap = {};
-    const otherFormDutyTypes = {};
-    
-    console.log(`[Cross-Roster] Generating assignments for ${selectedRostersForCheck.size} selected roster(s)`);
-    
-    selectedRostersForCheck.forEach(formId => {
-      const otherForm = otherForms.find(f => f.id === formId);
-      if (otherForm) {
-        console.log(`[Cross-Roster] Processing form ${formId}: ${otherForm.unit_name}`);
-        console.log(`[Cross-Roster] Form has ${otherForm.form_data?.assignments?.length || 0} stored assignments`);
-        
-        const assignments = generateAssignmentsForOtherForm(otherForm);
-        otherFormAssignmentsMap[formId] = assignments;
-        otherFormDutyTypes[formId] = otherForm.form_data.duty_config?.nature_of_duty || 'Duty';
-        
-        // Debug logging
-        const assignmentCount = Object.values(assignments).reduce((sum, soldierDates) => {
-          return sum + Object.keys(soldierDates).length;
-        }, 0);
-        console.log(`[Cross-Roster] Form ${formId} (${otherForm.unit_name}): ${assignmentCount} duty assignments found`);
-        
-        // Log sample assignments
-        if (assignmentCount > 0) {
-          const sampleEntries = Object.entries(assignments).slice(0, 3);
-          sampleEntries.forEach(([soldierId, dates]) => {
-            const dateStrs = Object.keys(dates).slice(0, 5);
-            console.log(`[Cross-Roster]   Soldier ${soldierId}: ${dateStrs.join(', ')}`);
-          });
-        }
-      } else {
-        console.warn(`[Cross-Roster] Form ${formId} not found in otherForms`);
-      }
-    });
-    
-    cachedOtherFormData = {
-      assignments: otherFormAssignmentsMap,
-      dutyTypes: otherFormDutyTypes
-    };
-    
-    otherFormAssignmentsRef.current[crossRosterKey] = cachedOtherFormData;
-    
-    console.log(`[Cross-Roster] Cache updated with key: ${crossRosterKey}`);
-  } else {
-    // Try to use cached data if available
-    cachedOtherFormData = otherFormAssignmentsRef.current[crossRosterKey] || null;
-    if (!cachedOtherFormData) {
-      console.log(`[Cross-Roster] Skipping generation - enabled: ${crossRosterCheckEnabled}, rosters: ${selectedRostersForCheck.size}, forms: ${otherForms.length}`);
-    }
-  }
+  // Use cached cross-roster data (generated in useEffect)
+  const cachedOtherFormData = crossRosterCheckEnabled && selectedRostersForCheck.size > 0 && otherForms.length > 0
+    ? (otherFormAssignmentsRef.current[crossRosterKey] || null)
+    : null;
 
   // Generate assignments once and memoize for days-off checking
   // Include cross-roster key in assignments key to ensure regeneration when cross-roster data changes
