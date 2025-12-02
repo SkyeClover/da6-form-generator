@@ -2091,22 +2091,24 @@ const DA6Form = () => {
         }
       }
       
-      // Don't generate all assignments - they can be generated on-demand
-      // Only store the source data to keep payload size manageable
+      // Generate assignments to store in form data (needed for view page)
+      const assignments = generateAssignments();
+      
       const payload = {
         unit_name: formData.unit_name,
         period_start: formData.period_start,
         period_end: formData.period_end,
         status: finalStatus,
         form_data: {
-          // Store only essential data, not generated assignments
           selected_soldiers: Array.from(selectedSoldiers),
           exceptions: exceptions,
           duty_config: formData.duty_config,
           holidays: holidays.map(h => typeof h === 'string' ? h : h.date),
           excluded_dates: Array.from(excludedDates),
           cross_roster_check_enabled: crossRosterCheckEnabled,
-          selected_rosters_for_check: Array.from(selectedRostersForCheck)
+          selected_rosters_for_check: Array.from(selectedRostersForCheck),
+          // Store assignments so view page can display them correctly
+          assignments: assignments
         }
       };
       

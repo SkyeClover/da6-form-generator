@@ -1233,6 +1233,29 @@ const DA6FormView = () => {
     return assignmentsMap;
   };
 
+  // Refetch form if assignments are missing (might be a race condition after save)
+  const [hasRefetched, setHasRefetched] = useState(false);
+  
+  useEffect(() => {
+    if (!form || hasRefetched) return;
+    
+    // If form has no assignments but has selected soldiers, it might be a race condition
+    // Refetch the form once to get the latest data
+    const hasAssignments = form.form_data?.assignments && form.form_data.assignments.length > 0;
+    const hasSelectedSoldiers = form.form_data?.selected_soldiers && form.form_data.selected_soldiers.length > 0;
+    
+    if (!hasAssignments && hasSelectedSoldiers) {
+      console.log('[Assignments Map] No stored assignments found, refetching form...');
+      setHasRefetched(true);
+      fetchForm();
+    }
+  }, [form, hasRefetched]);
+  
+  // Reset refetch flag when form ID changes
+  useEffect(() => {
+    setHasRefetched(false);
+  }, [id]);
+
   // Build assignments map from stored assignments when form loads
   // Use state instead of ref so it triggers re-render when updated
   useEffect(() => {
@@ -1274,16 +1297,14 @@ const DA6FormView = () => {
         assignmentsCount: Object.keys(storedMap).length,
         totalAssignments: Object.values(storedMap).reduce((sum, dates) => sum + Object.keys(dates).length, 0)
       });
-    } else if (soldiers.length > 0) {
-      // Fallback: regenerate if no stored assignments exist
-      const generatedMap = generateAssignmentsMap();
-      setAssignmentsMap(generatedMap);
-      console.log('[Assignments Map] Generated assignments (no stored assignments found)');
     } else {
+      // Don't regenerate - wait for form to be refetched or show empty
+      // This prevents showing incorrect data
       setAssignmentsMap({});
+      console.log('[Assignments Map] No stored assignments found, waiting for form data...');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form?.id, form?.updated_at, form?.created_at, form?.form_data?.assignments?.length, soldiers.length]);
+  }, [form?.id, form?.updated_at, form?.created_at, form?.form_data?.assignments?.length]);
 
   // Helper function to generate assignments for another form (for cross-roster checking)
   // This generates assignments dynamically using the other form's form_data
