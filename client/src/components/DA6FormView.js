@@ -460,7 +460,8 @@ const DA6FormView = () => {
     return true;
   };
 
-  // Generate assignments for all dates (memoized)
+  // Generate assignments for all dates (memoized) - kept for potential future use
+  // eslint-disable-next-line no-unused-vars
   const generateAssignmentsMap = () => {
     if (!form?.form_data) {
       console.log('generateAssignmentsMap: No form data');
@@ -1267,6 +1268,7 @@ const DA6FormView = () => {
     } else if (hasAssignments) {
       setIsWaitingForAssignments(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, hasRefetched]);
   
   // Reset refetch flag when form ID changes
