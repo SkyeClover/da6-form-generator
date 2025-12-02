@@ -30,8 +30,14 @@ const DA6FormView = () => {
 
   useEffect(() => {
     if (soldiers.length > 0 && form?.form_data?.selected_soldiers) {
-      fetchAllAppointments(soldiers.filter(s => form.form_data.selected_soldiers.includes(s.id)));
+      const syncAppointments = async () => {
+        const appointmentsMap = await fetchAllAppointments(soldiers.filter(s => form.form_data.selected_soldiers.includes(s.id)));
+        // Check if appointments exist for this form, and create them if missing
+        await checkAndCreateMissingAppointments(appointmentsMap);
+      };
+      syncAppointments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soldiers, form]);
 
   const fetchForm = async () => {
@@ -68,6 +74,190 @@ const DA6FormView = () => {
       }
     }
     setSoldierAppointments(appointmentsMap);
+    return appointmentsMap;
+  };
+
+  // Check if appointments exist for this form and create them if missing
+  const checkAndCreateMissingAppointments = async (appointmentsMap) => {
+    if (!form || !form.id || !form.form_data || !soldiers.length) return;
+    
+    try {
+      const selectedSoldiers = form.form_data.selected_soldiers || [];
+      if (selectedSoldiers.length === 0) return;
+      
+      // Check if any appointments exist for this form
+      let appointmentsExist = false;
+      for (const soldierId of selectedSoldiers) {
+        const appointments = appointmentsMap[soldierId] || [];
+        if (appointments.some(apt => apt.notes && apt.notes.includes(`DA6_FORM:${form.id}`))) {
+          appointmentsExist = true;
+          break;
+        }
+      }
+      
+      // If appointments don't exist, create them
+      if (!appointmentsExist) {
+        console.log(`[Appointment Sync] No appointments found for form ${form.id}, creating them...`);
+        await createAppointmentsFromAssignments();
+      }
+    } catch (error) {
+      console.error('Error checking appointments:', error);
+    }
+  };
+
+  // Create appointments from generated assignments
+  const createAppointmentsFromAssignments = async () => {
+    if (!form || !form.id || !form.form_data) return;
+    
+    try {
+      const assignmentsMap = generateAssignmentsMap();
+      const dutyType = form.form_data.duty_config?.nature_of_duty || 'Duty';
+      const selectedSoldiers = form.form_data.selected_soldiers || [];
+      
+      // Group duty assignments and days-off by soldier and date ranges
+      const soldierDutyRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
+      const soldierDaysOffRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
+      
+      // Convert assignmentsMap to flat array format
+      const assignments = [];
+      Object.entries(assignmentsMap).forEach(([soldierId, dateAssignments]) => {
+        Object.entries(dateAssignments).forEach(([dateStr, assignment]) => {
+          assignments.push({
+            soldier_id: soldierId,
+            date: dateStr,
+            duty: assignment.duty,
+            exception_code: assignment.exception_code
+          });
+        });
+      });
+      
+      assignments.forEach(assignment => {
+        if (!assignment.soldier_id) return;
+        
+        const soldierId = assignment.soldier_id;
+        const dateStr = assignment.date;
+        
+        // Handle duty assignments (actual duty, not exceptions)
+        if (assignment.duty && !assignment.exception_code) {
+          if (!soldierDutyRanges[soldierId]) {
+            soldierDutyRanges[soldierId] = [];
+          }
+          
+          let currentRange = soldierDutyRanges[soldierId].find(range => {
+            const lastDate = range.dates[range.dates.length - 1];
+            const date = new Date(dateStr);
+            const lastDateObj = new Date(lastDate);
+            const daysDiff = Math.floor((date - lastDateObj) / (1000 * 60 * 60 * 24));
+            return daysDiff <= 1;
+          });
+          
+          if (!currentRange) {
+            currentRange = {
+              start_date: dateStr,
+              end_date: dateStr,
+              dates: [dateStr]
+            };
+            soldierDutyRanges[soldierId].push(currentRange);
+          } else {
+            currentRange.dates.push(dateStr);
+            if (dateStr > currentRange.end_date) {
+              currentRange.end_date = dateStr;
+            }
+            if (dateStr < currentRange.start_date) {
+              currentRange.start_date = dateStr;
+            }
+          }
+        }
+        
+        // Handle days-off assignments (P exception code)
+        if (assignment.exception_code === 'P') {
+          if (!soldierDaysOffRanges[soldierId]) {
+            soldierDaysOffRanges[soldierId] = [];
+          }
+          
+          let currentRange = soldierDaysOffRanges[soldierId].find(range => {
+            const lastDate = range.dates[range.dates.length - 1];
+            const date = new Date(dateStr);
+            const lastDateObj = new Date(lastDate);
+            const daysDiff = Math.floor((date - lastDateObj) / (1000 * 60 * 60 * 24));
+            return daysDiff <= 1;
+          });
+          
+          if (!currentRange) {
+            currentRange = {
+              start_date: dateStr,
+              end_date: dateStr,
+              dates: [dateStr]
+            };
+            soldierDaysOffRanges[soldierId].push(currentRange);
+          } else {
+            currentRange.dates.push(dateStr);
+            if (dateStr > currentRange.end_date) {
+              currentRange.end_date = dateStr;
+            }
+            if (dateStr < currentRange.start_date) {
+              currentRange.start_date = dateStr;
+            }
+          }
+        }
+      });
+      
+      // Determine exception code based on duty type
+      let exceptionCode = 'D';
+      if (dutyType === 'CQ' || dutyType === 'Charge of Quarters') {
+        exceptionCode = 'CQ';
+      } else if (dutyType === 'BN Staff Duty' || dutyType === 'Brigade Staff Duty' || dutyType.includes('Staff Duty')) {
+        exceptionCode = 'SD';
+      }
+      
+      const BATCH_DELAY = 200;
+      
+      // Create duty appointments
+      for (const [soldierId, ranges] of Object.entries(soldierDutyRanges)) {
+        for (const range of ranges) {
+          try {
+            await apiClient.post(`/soldiers/${soldierId}/appointments`, {
+              start_date: range.start_date,
+              end_date: range.end_date,
+              reason: `${dutyType} Duty`,
+              exception_code: exceptionCode,
+              notes: `DA6_FORM:${form.id}`
+            });
+          } catch (err) {
+            console.error(`Error creating duty appointment for soldier ${soldierId}:`, err);
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
+      
+      // Create days-off (Pass) appointments
+      for (const [soldierId, ranges] of Object.entries(soldierDaysOffRanges)) {
+        for (const range of ranges) {
+          try {
+            await apiClient.post(`/soldiers/${soldierId}/appointments`, {
+              start_date: range.start_date,
+              end_date: range.end_date,
+              reason: 'Pass (Days Off After Duty)',
+              exception_code: 'P',
+              notes: `DA6_FORM:${form.id}`
+            });
+          } catch (err) {
+            console.error(`Error creating days-off appointment for soldier ${soldierId}:`, err);
+          }
+        }
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
+      
+      // Refresh appointments after creating
+      if (selectedSoldiers.length > 0) {
+        const soldiersList = soldiers.filter(s => selectedSoldiers.includes(s.id));
+        await fetchAllAppointments(soldiersList);
+      }
+      
+      console.log(`[Appointment Sync] Created appointments for form ${form.id}`);
+    } catch (error) {
+      console.error('Error creating appointments from assignments:', error);
+    }
   };
 
   const fetchOtherForms = async (formIds) => {
