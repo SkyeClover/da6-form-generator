@@ -2480,7 +2480,7 @@ const DA6Form = () => {
         <h2>{id ? 'Edit DA6 Form' : 'Create New DA6 Form'}</h2>
         <div className="form-actions-header">
           <button className="btn-secondary" onClick={() => navigate('/forms')}>
-            Cancel
+            Back
           </button>
           <button className="btn-primary" onClick={() => handleSave('draft')}>
             Submit Form
