@@ -1056,6 +1056,15 @@ const DA6Form = () => {
                 selectedForDay.push(soldier.id);
                 lastAssignmentMap[soldier.id] = dateStr;
                 selectedForRequirement++;
+                
+                // Update the map reference if using separate cycles
+                if (separateHolidayCycle && isHoliday(current)) {
+                  lastHolidayAssignmentDate[soldier.id] = dateStr;
+                } else if (separateWeekendCycle && isWeekend(current) && !isHoliday(current)) {
+                  lastWeekendAssignmentDate[soldier.id] = dateStr;
+                } else {
+                  lastAssignmentDate[soldier.id] = dateStr;
+                }
               }
             }
           } else {
@@ -1295,6 +1304,15 @@ const DA6Form = () => {
               
               selectedForDay.push(soldier.id);
               lastAssignmentMap[soldier.id] = dateStr;
+              
+              // Update the map reference if using separate cycles
+              if (separateHolidayCycle && isHoliday(current)) {
+                lastHolidayAssignmentDate[soldier.id] = dateStr;
+              } else if (separateWeekendCycle && isWeekend(current) && !isHoliday(current)) {
+                lastWeekendAssignmentDate[soldier.id] = dateStr;
+              } else {
+                lastAssignmentDate[soldier.id] = dateStr;
+              }
             }
           }
           
