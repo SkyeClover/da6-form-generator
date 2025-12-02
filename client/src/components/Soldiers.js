@@ -97,7 +97,13 @@ const Soldiers = () => {
       fetchSoldiers();
     } catch (error) {
       console.error('Error saving soldier:', error);
-      alert('Error saving soldier. Please try again.');
+      
+      // Check if it's a limit error (403)
+      if (error.response?.status === 403 && error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('Error saving soldier. Please try again.');
+      }
     }
   };
 
@@ -156,6 +162,15 @@ const Soldiers = () => {
               onUpdate={fetchSoldiers}
             />
           )}
+          {soldiers.length >= 10 && (
+            <span style={{ 
+              color: '#d32f2f', 
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              Soldier limit reached (10/10)
+            </span>
+          )}
           <button 
             className="btn-primary" 
             onClick={() => {
@@ -175,6 +190,12 @@ const Soldiers = () => {
                 days_since_last_duty: 0
               });
             }}
+            disabled={soldiers.length >= 10}
+            style={soldiers.length >= 10 ? { 
+              opacity: 0.6, 
+              cursor: 'not-allowed' 
+            } : {}}
+            title={soldiers.length >= 10 ? 'You have reached the maximum of 10 soldiers. Please delete an existing soldier to add a new one.' : ''}
           >
             + Add Soldier
           </button>

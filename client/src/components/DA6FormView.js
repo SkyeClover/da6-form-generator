@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
 import { sortSoldiersByRank, isLowerEnlisted, isNCORank, isWarrantOfficerRank, isOfficerRank, getRanksInRange, getRankOrder } from '../utils/rankOrder';
@@ -38,7 +38,7 @@ const DA6FormView = () => {
     if (form?.period_start && form?.period_end) {
       findOverlappingForms();
     }
-  }, [form]);
+  }, [form, findOverlappingForms]);
 
   // Track if we've already synced appointments to prevent re-syncing on every render
   const hasSyncedAppointments = useRef(false);
@@ -314,7 +314,7 @@ const DA6FormView = () => {
     }
   };
 
-  const findOverlappingForms = async () => {
+  const findOverlappingForms = useCallback(async () => {
     if (!form?.period_start || !form?.period_end) return;
     
     try {
@@ -340,7 +340,7 @@ const DA6FormView = () => {
     } catch (error) {
       console.error('Error finding overlapping forms:', error);
     }
-  };
+  }, [form]);
 
   const getAppointmentsForSoldier = (soldierId) => {
     return soldierAppointments[soldierId] || [];

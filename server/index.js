@@ -9,6 +9,14 @@ const supabase = require('./config/supabase');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Admin email that bypasses limits
+const ADMIN_EMAIL = 'jacobwalker852@gmail.com';
+
+// Helper function to check if user should have limits applied
+const shouldApplyLimits = (userEmail) => {
+  return userEmail !== ADMIN_EMAIL;
+};
+
 // Middleware
 // CORS configuration - allow Vercel deployment URL and localhost
 const allowedOrigins = [
@@ -102,6 +110,22 @@ app.get('/api/da6-forms/:id', verifyAuth, async (req, res) => {
 
 app.post('/api/da6-forms', verifyAuth, async (req, res) => {
   try {
+    // Check form limit for non-admin users
+    if (shouldApplyLimits(req.user.email)) {
+      const { count, error: countError } = await supabase
+        .from('da6_forms')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', req.user.id);
+
+      if (countError) throw countError;
+      
+      if (count >= 3) {
+        return res.status(403).json({ 
+          error: 'Form limit reached. You can create up to 3 forms. Please delete an existing form to create a new one.' 
+        });
+      }
+    }
+
     const { data, error } = await supabase
       .from('da6_forms')
       .insert({
@@ -197,6 +221,22 @@ app.get('/api/soldiers', verifyAuth, async (req, res) => {
 
 app.post('/api/soldiers', verifyAuth, async (req, res) => {
   try {
+    // Check soldier limit for non-admin users
+    if (shouldApplyLimits(req.user.email)) {
+      const { count, error: countError } = await supabase
+        .from('soldiers')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', req.user.id);
+
+      if (countError) throw countError;
+      
+      if (count >= 10) {
+        return res.status(403).json({ 
+          error: 'Soldier limit reached. You can add up to 10 soldiers. Please delete an existing soldier to add a new one.' 
+        });
+      }
+    }
+
     const { data, error } = await supabase
       .from('soldiers')
       .insert({

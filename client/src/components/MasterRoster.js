@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
-import { sortSoldiersByRank, getRankOrder } from '../utils/rankOrder';
+import { getRankOrder } from '../utils/rankOrder';
 import { getFederalHolidaysInRange } from '../utils/federalHolidays';
 import Layout from './Layout';
 import LoadingScreen from './LoadingScreen';
@@ -28,6 +28,7 @@ const MasterRoster = () => {
     } else {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decodedPeriodStart, decodedPeriodEnd]);
 
   const fetchForms = async () => {
