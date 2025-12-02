@@ -27,6 +27,7 @@ const DA6Form = () => {
   const [otherForms, setOtherForms] = useState([]); // For cross-roster checking
   const [crossRosterCheckEnabled, setCrossRosterCheckEnabled] = useState(true); // Auto-enabled by default
   const [selectedRostersForCheck, setSelectedRostersForCheck] = useState(new Set());
+  const [overlappingForms, setOverlappingForms] = useState([]); // Forms with the same period that will be optimized together
   const [excludedDates, setExcludedDates] = useState(new Set()); // Dates where no one is needed
   const [formData, setFormData] = useState({
     unit_name: '',
@@ -300,6 +301,25 @@ const DA6Form = () => {
     }
   };
 
+  // Find overlapping forms (forms with the same date period)
+  const findOverlappingForms = (forms, periodStart, periodEnd) => {
+    if (!periodStart || !periodEnd) return [];
+    
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    
+    return forms.filter(f => {
+      if (!f.period_start || !f.period_end) return false;
+      if (f.status === 'cancelled') return false; // Exclude cancelled forms
+      
+      const fStart = new Date(f.period_start);
+      const fEnd = new Date(f.period_end);
+      
+      // Check if periods overlap (same start and end dates)
+      return fStart.getTime() === start.getTime() && fEnd.getTime() === end.getTime();
+    });
+  };
+
   const fetchOtherForms = async () => {
     try {
       const { data } = await apiClient.get('/da6-forms');
@@ -325,6 +345,26 @@ const DA6Form = () => {
       });
       
       setOtherForms(otherForms);
+      
+      // Find overlapping forms (forms with the same period) for multi-form optimization
+      if (formData.period_start && formData.period_end) {
+        // Include current form in the search if it exists
+        const allFormsForOverlap = id 
+          ? [...otherForms, { id, period_start: formData.period_start, period_end: formData.period_end, status: formData.status }]
+          : otherForms;
+        
+        const overlapping = findOverlappingForms(
+          allFormsForOverlap,
+          formData.period_start,
+          formData.period_end
+        ).filter(f => f.id !== id); // Exclude current form from the list
+        
+        setOverlappingForms(overlapping);
+        
+        if (overlapping.length > 0) {
+          console.log(`[Multi-Form] Found ${overlapping.length} overlapping form(s) for optimization:`, overlapping.map(f => f.unit_name || f.id));
+        }
+      }
       
       // Automatically enable cross-roster checking and select all other forms
       // Only auto-select if no rosters are currently selected (to avoid overriding user choices)
@@ -1262,16 +1302,343 @@ const DA6Form = () => {
     return assignments;
   };
 
+  // Generate optimized assignments for multiple forms simultaneously
+  // This ensures proper "days since last duty" optimization across all forms in the same period
+  const generateMultiFormAssignments = (forms) => {
+    if (!forms || forms.length === 0) return {};
+    
+    // Validate all forms have the same period
+    const firstForm = forms[0];
+    const periodStart = firstForm.period_start;
+    const periodEnd = firstForm.period_end;
+    
+    if (!periodStart || !periodEnd) return {};
+    
+    const start = new Date(periodStart);
+    const end = new Date(periodEnd);
+    
+    // Verify all forms have the same period
+    for (const form of forms) {
+      if (form.period_start !== periodStart || form.period_end !== periodEnd) {
+        console.warn('[Multi-Form] Forms do not have the same period, cannot optimize together');
+        return {};
+      }
+    }
+    
+    // Results: { formId: [assignments] }
+    const results = {};
+    forms.forEach(form => {
+      results[form.id] = [];
+    });
+    
+    // Track last assignment date across ALL forms for each soldier
+    const lastAssignmentDate = {}; // { soldierId: dateStr }
+    const lastWeekendAssignmentDate = {}; // For separate weekend cycle
+    const lastHolidayAssignmentDate = {}; // For separate holiday cycle
+    
+    // Track assignments across all forms by date: { dateStr: { formId: [soldierIds] } }
+    const allAssignmentsByDate = {};
+    
+    // Build a map of the most recent duty date for each soldier from completed forms
+    const lastDutyDateFromCompletedForms = {};
+    const completedForms = otherForms.filter(f => f.status === 'complete');
+    completedForms.forEach(form => {
+      if (!form.form_data) return;
+      const formAssignments = form.form_data.assignments || [];
+      formAssignments.forEach(assignment => {
+        if (assignment.soldier_id && assignment.duty && !assignment.exception_code) {
+          const soldierId = assignment.soldier_id;
+          const dutyDate = assignment.date;
+          if (!lastDutyDateFromCompletedForms[soldierId] || dutyDate > lastDutyDateFromCompletedForms[soldierId]) {
+            lastDutyDateFromCompletedForms[soldierId] = dutyDate;
+          }
+        }
+      });
+    });
+    
+    // Helper to get days since last duty for a soldier (considering ALL forms)
+    const getDaysSinceLastDuty = (soldier, currentDate, formConfig) => {
+      const separateWeekendCycle = formConfig.separate_weekend_cycle || false;
+      const separateHolidayCycle = formConfig.separate_holiday_cycle || false;
+      
+      // Determine which cycle to check
+      let lastDate = lastAssignmentDate[soldier.id];
+      if (separateHolidayCycle && isHoliday(currentDate)) {
+        lastDate = lastHolidayAssignmentDate[soldier.id];
+      } else if (separateWeekendCycle && isWeekend(currentDate) && !isHoliday(currentDate)) {
+        lastDate = lastWeekendAssignmentDate[soldier.id];
+      }
+      
+      if (lastDate) {
+        const lastDateObj = new Date(lastDate);
+        const daysSince = Math.floor((currentDate - lastDateObj) / (1000 * 60 * 60 * 24));
+        return daysSince;
+      }
+      
+      // Check completed forms
+      const lastDutyDateFromForms = lastDutyDateFromCompletedForms[soldier.id];
+      if (lastDutyDateFromForms) {
+        const lastDutyDateObj = new Date(lastDutyDateFromForms);
+        lastDutyDateObj.setHours(0, 0, 0, 0);
+        const currentDateObj = new Date(currentDate);
+        currentDateObj.setHours(0, 0, 0, 0);
+        const daysSince = Math.floor((currentDateObj - lastDutyDateObj) / (1000 * 60 * 60 * 24));
+        return daysSince;
+      }
+      
+      return soldier.days_since_last_duty || 0;
+    };
+    
+    // Generate assignments day by day, optimizing across all forms
+    // Process forms in order, but track assignments across all forms to optimize "days since last duty"
+    const current = new Date(start);
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      
+      if (!allAssignmentsByDate[dateStr]) {
+        allAssignmentsByDate[dateStr] = {};
+      }
+      
+      // Sort forms by priority: forms with more specific requirements first
+      // This ensures forms with rank requirements get priority over simple forms
+      const sortedForms = [...forms].sort((a, b) => {
+        const aRequirements = (a.form_data?.duty_config || a.duty_config || {}).rank_requirements?.requirements || [];
+        const bRequirements = (b.form_data?.duty_config || b.duty_config || {}).rank_requirements?.requirements || [];
+        return bRequirements.length - aRequirements.length; // More requirements = higher priority
+      });
+      
+      // For each form, try to assign soldiers for this date
+      for (const form of sortedForms) {
+        const formConfig = form.form_data?.duty_config || form.duty_config || {};
+        const formSelectedSoldiers = form.form_data?.selected_soldiers || form.selectedSoldiers || [];
+        const formExceptions = form.form_data?.exceptions || form.exceptions || {};
+        const soldiersPerDay = formConfig.soldiers_per_day || 2;
+        const daysOffAfterDuty = formConfig.days_off_after_duty || 1;
+        const rankRequirements = formConfig.rank_requirements?.requirements || [];
+        const globalExclusions = formConfig.rank_requirements?.exclusions || { ranks: [], groups: [] };
+        const separateWeekendCycle = formConfig.separate_weekend_cycle || false;
+        const separateHolidayCycle = formConfig.separate_holiday_cycle || false;
+        
+        // Check if date should be included for this form
+        const excludedDates = form.form_data?.excluded_dates || form.excludedDates || [];
+        if (excludedDates.includes(dateStr)) continue;
+        
+        const isWeekendDay = isWeekend(current);
+        const isHolidayDay = isHoliday(current);
+        if (formConfig.skip_weekends && isWeekendDay && !separateWeekendCycle) continue;
+        
+        // Get available soldiers for this form
+        const availableSoldiers = formSelectedSoldiers
+          .map(soldierId => soldiers.find(s => s.id === soldierId))
+          .filter(s => {
+            if (!s) return false;
+            // Check exceptions
+            const soldierExceptions = formExceptions[s.id] || {};
+            if (soldierExceptions[dateStr]) return false;
+            return true;
+          });
+        
+        // Determine which cycle to use
+        let lastAssignmentMap = lastAssignmentDate;
+        if (separateHolidayCycle && isHolidayDay) {
+          lastAssignmentMap = lastHolidayAssignmentDate;
+        } else if (separateWeekendCycle && isWeekendDay && !isHolidayDay) {
+          lastAssignmentMap = lastWeekendAssignmentDate;
+        }
+        
+        // Get already assigned soldiers for this date (across all forms)
+        const alreadyAssignedToday = new Set();
+        Object.values(allAssignmentsByDate[dateStr] || {}).forEach(soldierIds => {
+          soldierIds.forEach(id => alreadyAssignedToday.add(id));
+        });
+        
+        // Select soldiers for this form on this date
+        const selectedForForm = [];
+        
+        if (rankRequirements.length > 0) {
+          // Fill rank requirements
+          for (const requirement of rankRequirements) {
+            const quantity = requirement.quantity || 1;
+            
+            let matchingSoldiers = availableSoldiers.filter(soldier => 
+              soldierMatchesRequirement(soldier, requirement, globalExclusions) &&
+              !selectedForForm.includes(soldier.id) &&
+              !alreadyAssignedToday.has(soldier.id)
+            );
+            
+            // Sort by days since last duty (most days first)
+            matchingSoldiers.sort((a, b) => {
+              const aDaysSince = getDaysSinceLastDuty(a, current, formConfig);
+              const bDaysSince = getDaysSinceLastDuty(b, current, formConfig);
+              if (aDaysSince !== bDaysSince) {
+                return bDaysSince - aDaysSince;
+              }
+              
+              // Check days off
+              const aDaysOff = aDaysSince <= daysOffAfterDuty;
+              const bDaysOff = bDaysSince <= daysOffAfterDuty;
+              if (aDaysOff !== bDaysOff) {
+                return aDaysOff ? 1 : -1; // Prefer soldiers not in days-off period
+              }
+              
+              // Rank order
+              const aRankOrder = getRankOrder(a.rank?.toUpperCase().trim());
+              const bRankOrder = getRankOrder(b.rank?.toUpperCase().trim());
+              if (aRankOrder !== bRankOrder) {
+                return aRankOrder - bRankOrder;
+              }
+              
+              // Alphabetical
+              return (a.last_name || '').localeCompare(b.last_name || '');
+            });
+            
+            // Select soldiers
+            let selectedForRequirement = 0;
+            for (const soldier of matchingSoldiers) {
+              if (selectedForRequirement >= quantity || selectedForForm.length >= soldiersPerDay) break;
+              
+              const daysSince = getDaysSinceLastDuty(soldier, current, formConfig);
+              
+              // Check days off
+              if (daysSince <= daysOffAfterDuty) continue;
+              
+              // Check if soldier has duty in other forms on previous/next days
+              let canAssign = true;
+              
+              // Check previous day
+              for (let i = 1; i <= daysOffAfterDuty; i++) {
+                const prevDate = new Date(current);
+                prevDate.setDate(prevDate.getDate() - i);
+                const prevDateStr = prevDate.toISOString().split('T')[0];
+                const prevAssignments = allAssignmentsByDate[prevDateStr] || {};
+                for (const formId in prevAssignments) {
+                  if (prevAssignments[formId].includes(soldier.id)) {
+                    canAssign = false;
+                    break;
+                  }
+                }
+                if (!canAssign) break;
+              }
+              
+              // Check next day
+              if (canAssign) {
+                for (let i = 1; i <= daysOffAfterDuty; i++) {
+                  const nextDate = new Date(current);
+                  nextDate.setDate(nextDate.getDate() + i);
+                  const nextDateStr = nextDate.toISOString().split('T')[0];
+                  const nextAssignments = allAssignmentsByDate[nextDateStr] || {};
+                  for (const formId in nextAssignments) {
+                    if (nextAssignments[formId].includes(soldier.id)) {
+                      canAssign = false;
+                      break;
+                    }
+                  }
+                  if (!canAssign) break;
+                }
+              }
+              
+              if (!canAssign) continue;
+              
+              selectedForForm.push(soldier.id);
+              selectedForRequirement++;
+              
+              // Update last assignment date
+              lastAssignmentMap[soldier.id] = dateStr;
+            }
+          }
+        } else {
+          // No rank requirements - simple selection
+          const candidates = availableSoldiers
+            .filter(s => !alreadyAssignedToday.has(s.id))
+            .map(soldier => ({
+              soldier,
+              daysSince: getDaysSinceLastDuty(soldier, current, formConfig)
+            }))
+            .filter(c => c.daysSince > daysOffAfterDuty)
+            .sort((a, b) => {
+              if (a.daysSince !== b.daysSince) {
+                return b.daysSince - a.daysSince;
+              }
+              const aRankOrder = getRankOrder(a.soldier.rank?.toUpperCase().trim());
+              const bRankOrder = getRankOrder(b.soldier.rank?.toUpperCase().trim());
+              if (aRankOrder !== bRankOrder) {
+                return aRankOrder - bRankOrder;
+              }
+              return (a.soldier.last_name || '').localeCompare(b.soldier.last_name || '');
+            });
+          
+          for (const { soldier } of candidates) {
+            if (selectedForForm.length >= soldiersPerDay) break;
+            selectedForForm.push(soldier.id);
+            lastAssignmentMap[soldier.id] = dateStr;
+          }
+        }
+        
+        // Add assignments for this form
+        if (!allAssignmentsByDate[dateStr][form.id]) {
+          allAssignmentsByDate[dateStr][form.id] = [];
+        }
+        allAssignmentsByDate[dateStr][form.id] = selectedForForm;
+        
+        selectedForForm.forEach(soldierId => {
+          results[form.id].push({
+            soldier_id: soldierId,
+            date: dateStr,
+            duty: formConfig.nature_of_duty || 'Duty'
+          });
+          
+          // Add days off after duty
+          for (let i = 1; i <= daysOffAfterDuty; i++) {
+            const offDate = new Date(current);
+            offDate.setDate(offDate.getDate() + i);
+            const offDateStr = offDate.toISOString().split('T')[0];
+            
+            // Check if already added
+            const alreadyAdded = results[form.id].some(a => 
+              a.soldier_id === soldierId && a.date === offDateStr && a.exception_code === 'P'
+            );
+            
+            if (!alreadyAdded) {
+              results[form.id].push({
+                soldier_id: soldierId,
+                date: offDateStr,
+                exception_code: 'P',
+                duty: 'P'
+              });
+            }
+          }
+        });
+      }
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    return results;
+  };
+
   // Create duty and days-off appointments in soldier profiles when form is saved
   // This enables automatic cross-roster checking
-  const createDutyAndDaysOffAppointments = async (formId) => {
-    if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return;
+  // Can accept form data and assignments as parameters for multi-form optimization
+  const createDutyAndDaysOffAppointments = async (formId, formDataOverride = null, assignmentsOverride = null) => {
+    const formDataToUse = formDataOverride || formData;
+    const assignmentsToUse = assignmentsOverride;
     
-    try {
+    if (!formDataToUse.period_start || !formDataToUse.period_end) return;
+    
+    // If assignments are provided, use them; otherwise generate
+    let assignments;
+    if (assignmentsToUse) {
+      assignments = assignmentsToUse;
+    } else {
       // Use cached cross-roster data if available
       const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
-      const assignments = generateAssignments(crossRosterDataForGeneration);
-      const dutyType = formData.duty_config?.nature_of_duty || 'Duty';
+      assignments = generateAssignments(crossRosterDataForGeneration);
+    }
+    
+    if (assignments.length === 0) return;
+    
+    try {
+      const dutyType = formDataToUse.duty_config?.nature_of_duty || 'Duty';
       
       // Group duty assignments and days-off by soldier and date ranges
       const soldierDutyRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
@@ -2171,10 +2538,68 @@ const DA6Form = () => {
         }
       }
       
-      // Generate assignments to store in form data (needed for view page)
-      // Use cached cross-roster data if available
-      const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
-      const assignments = generateAssignments(crossRosterDataForGeneration);
+      // Check for overlapping forms (forms with the same period)
+      const overlapping = findOverlappingForms(
+        otherForms,
+        formData.period_start,
+        formData.period_end
+      ).filter(f => f.status !== 'cancelled' && f.status !== 'complete'); // Only optimize with active forms
+      
+      let assignments;
+      let formsToUpdate = [];
+      
+      if (overlapping.length > 0 && !isCancelling) {
+        // Multi-form optimization: generate assignments for all overlapping forms together
+        console.log(`[Multi-Form] Optimizing ${overlapping.length + 1} forms together for period ${formData.period_start} to ${formData.period_end}`);
+        
+        // Prepare forms for multi-form generation (include current form)
+        const currentFormForGeneration = {
+          id: id || 'new',
+          period_start: formData.period_start,
+          period_end: formData.period_end,
+          form_data: {
+            selected_soldiers: Array.from(selectedSoldiers),
+            exceptions: exceptions,
+            duty_config: formData.duty_config,
+            excluded_dates: Array.from(excludedDates)
+          },
+          selectedSoldiers: selectedSoldiers,
+          exceptions: exceptions,
+          duty_config: formData.duty_config,
+          excludedDates: excludedDates
+        };
+        
+        const allFormsForGeneration = [currentFormForGeneration, ...overlapping];
+        const multiFormResults = generateMultiFormAssignments(allFormsForGeneration);
+        
+        // Get assignments for current form
+        assignments = multiFormResults[id || 'new'] || [];
+        
+        // Prepare forms to update
+        formsToUpdate = overlapping.map(form => ({
+          form,
+          assignments: multiFormResults[form.id] || []
+        }));
+        
+        // Show notification
+        const formNames = overlapping.map(f => f.unit_name || f.id).join(', ');
+        const confirmed = window.confirm(
+          `Found ${overlapping.length} other form(s) with the same period:\n\n${formNames}\n\n` +
+          `All forms will be optimized together to ensure proper "days since last duty" distribution.\n\n` +
+          `Click OK to update all forms, or Cancel to save only this form.`
+        );
+        
+        if (!confirmed) {
+          // User cancelled - use single-form generation
+          const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+          assignments = generateAssignments(crossRosterDataForGeneration);
+          formsToUpdate = [];
+        }
+      } else {
+        // Single-form generation (no overlapping forms)
+        const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
+        assignments = generateAssignments(crossRosterDataForGeneration);
+      }
       
       const payload = {
         unit_name: formData.unit_name,
@@ -2199,47 +2624,67 @@ const DA6Form = () => {
         payload.cancelled_date = cancelledDate;
       }
 
+      // Save current form
+      let savedFormId = id;
       if (id) {
         await apiClient.put(`/da6-forms/${id}`, payload);
-        
-        // Create/update duty and days-off appointments whenever form is saved
-        // This enables automatic cross-roster checking
-        setUpdatingSoldiers(true);
-        await createDutyAndDaysOffAppointments(id);
-        setUpdatingSoldiers(false);
-        
-        if (isCancelling || wasCancelled) {
-          // Handle cancellation - remove uncompleted appointments
-          setUpdatingSoldiers(true);
-          await removeDutyAppointments(id, cancelledDate);
-          setUpdatingSoldiers(false);
-          alert('Form cancelled. Uncompleted duty appointments have been removed.');
-          navigate('/forms');
-        } else {
-          setSaving(false);
-          alert('Form saved successfully! Duty appointments have been updated in soldier profiles.');
-          navigate(`/forms/${id}/view`);
-        }
+        savedFormId = id;
       } else {
         const { data } = await apiClient.post('/da6-forms', payload);
-        const newFormId = data.form.id;
-        
-        // Create duty and days-off appointments for new form
-        setUpdatingSoldiers(true);
-        await createDutyAndDaysOffAppointments(newFormId);
-        setUpdatingSoldiers(false);
-        
-        if (isCancelling) {
-          // Handle cancellation for new form (shouldn't happen, but handle it)
-          setUpdatingSoldiers(true);
-          await removeDutyAppointments(newFormId, cancelledDate);
-          setUpdatingSoldiers(false);
-          alert('Form cancelled. Uncompleted duty appointments have been removed.');
-          navigate('/forms');
-        } else {
-          setSaving(false);
-          navigate(`/forms/${newFormId}/view`);
+        savedFormId = data.form.id;
+      }
+      
+      // Update overlapping forms if multi-form optimization was used
+      if (formsToUpdate.length > 0) {
+        console.log(`[Multi-Form] Updating ${formsToUpdate.length} overlapping form(s)...`);
+        for (const { form, assignments: formAssignments } of formsToUpdate) {
+          try {
+            const formPayload = {
+              unit_name: form.unit_name,
+              period_start: form.period_start,
+              period_end: form.period_end,
+              status: form.status,
+              form_data: {
+                ...form.form_data,
+                assignments: formAssignments
+              }
+            };
+            
+            await apiClient.put(`/da6-forms/${form.id}`, formPayload);
+            
+            // Update appointments for this form using the optimized assignments
+            setUpdatingSoldiers(true);
+            await createDutyAndDaysOffAppointments(form.id, form, formAssignments);
+            setUpdatingSoldiers(false);
+            
+            console.log(`[Multi-Form] Updated form ${form.id} (${form.unit_name})`);
+          } catch (error) {
+            console.error(`[Multi-Form] Error updating form ${form.id}:`, error);
+            alert(`Warning: Could not update overlapping form "${form.unit_name}". Please update it manually.`);
+          }
         }
+      }
+      
+      // Create/update duty and days-off appointments for current form
+      setUpdatingSoldiers(true);
+      await createDutyAndDaysOffAppointments(savedFormId);
+      setUpdatingSoldiers(false);
+      
+      if (isCancelling || wasCancelled) {
+        // Handle cancellation - remove uncompleted appointments
+        setUpdatingSoldiers(true);
+        await removeDutyAppointments(savedFormId, cancelledDate);
+        setUpdatingSoldiers(false);
+        alert('Form cancelled. Uncompleted duty appointments have been removed.');
+        navigate('/forms');
+      } else {
+        setSaving(false);
+        if (formsToUpdate.length > 0) {
+          alert(`Form saved successfully! ${formsToUpdate.length} overlapping form(s) were also updated to ensure optimal duty distribution.`);
+        } else {
+          alert('Form saved successfully! Duty appointments have been updated in soldier profiles.');
+        }
+        navigate(`/forms/${savedFormId}/view`);
       }
     } catch (error) {
       console.error('Error saving form:', error);
@@ -2327,6 +2772,20 @@ const DA6Form = () => {
     
     setExceptions(newExceptions);
   };
+
+  // Update overlapping forms when period changes
+  useEffect(() => {
+    if (formData.period_start && formData.period_end && otherForms.length > 0) {
+      const overlapping = findOverlappingForms(
+        otherForms,
+        formData.period_start,
+        formData.period_end
+      ).filter(f => f.status !== 'cancelled' && f.status !== 'complete');
+      setOverlappingForms(overlapping);
+    } else {
+      setOverlappingForms([]);
+    }
+  }, [formData.period_start, formData.period_end, otherForms]);
 
   // Automatically populate exceptions from cross-roster conflicts
   // This checks both other forms AND soldier appointments (which include duties from completed forms)
@@ -3611,6 +4070,30 @@ const DA6Form = () => {
 
         {selectedSoldiers.size > 0 && formData.period_start && formData.period_end && (
           <div className="form-section">
+            {overlappingForms.length > 0 && (
+              <div style={{ 
+                backgroundColor: '#fff3cd', 
+                border: '1px solid #ffc107', 
+                borderRadius: '4px', 
+                padding: '12px', 
+                marginBottom: '20px' 
+              }}>
+                <h4 style={{ marginTop: 0, color: '#856404' }}>
+                  ⚠️ Multi-Form Optimization Detected
+                </h4>
+                <p style={{ marginBottom: '8px', color: '#856404' }}>
+                  <strong>Found {overlappingForms.length} other form(s) with the same period:</strong>
+                </p>
+                <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px', color: '#856404' }}>
+                  {overlappingForms.map(form => (
+                    <li key={form.id}>{form.unit_name || form.id}</li>
+                  ))}
+                </ul>
+                <p style={{ marginBottom: 0, color: '#856404', fontSize: '14px' }}>
+                  When you save this form, all overlapping forms will be optimized together to ensure proper "days since last duty" distribution across all duties.
+                </p>
+              </div>
+            )}
             <h3>Cross-Roster Checking</h3>
             <p className="section-description">
               <strong>Automatic cross-roster checking is enabled by default.</strong> The system automatically checks all other DA6 forms in your account and applies appropriate exception codes (CQ, SD, or D) to prevent scheduling conflicts. Exception codes are automatically added before generating assignments to ensure soldiers' previous commitments are respected.
