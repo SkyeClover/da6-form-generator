@@ -2482,8 +2482,8 @@ const DA6Form = () => {
           <button className="btn-secondary" onClick={() => navigate('/forms')}>
             Cancel
           </button>
-          <button className="btn-secondary" onClick={() => handleSave('draft')}>
-            Save Draft
+          <button className="btn-primary" onClick={() => handleSave('draft')}>
+            Submit Form
           </button>
           {formData.status !== 'cancelled' && (
             <button 
