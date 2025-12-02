@@ -835,7 +835,7 @@ const DA6Form = () => {
                 return soldier.days_since_last_duty || 0;
               };
               
-              // Sort by days since last duty (MOST days first - PRIMARY criterion), then preferred ranks, fallback ranks, rank order, alphabetical
+              // Sort by days since last duty (MOST days first - PRIMARY criterion), then by number of assignments (fewest first), then preferred ranks, fallback ranks, rank order, alphabetical
               matchingSoldiers.sort((a, b) => {
                 // PRIMARY: Days since last duty (most days first)
                 const aDaysSince = getDaysSinceLastDuty(a);
@@ -844,29 +844,36 @@ const DA6Form = () => {
                   return bDaysSince - aDaysSince; // Descending (most days first)
                 }
                 
+                // SECONDARY: Number of assignments in this period (fewest first) - ensures rotation when days are equal
+                const aAssignmentCount = assignments.filter(ass => ass.soldier_id === a.id && ass.duty && !ass.exception_code).length;
+                const bAssignmentCount = assignments.filter(ass => ass.soldier_id === b.id && ass.duty && !ass.exception_code).length;
+                if (aAssignmentCount !== bAssignmentCount) {
+                  return aAssignmentCount - bAssignmentCount; // Ascending (fewest assignments first)
+                }
+                
                 const aRank = a.rank?.toUpperCase().trim();
                 const bRank = b.rank?.toUpperCase().trim();
                 
-                // SECONDARY: Preferred ranks
+                // TERTIARY: Preferred ranks
                 const aPreferred = requirement.preferred_ranks?.includes(aRank);
                 const bPreferred = requirement.preferred_ranks?.includes(bRank);
                 if (aPreferred && !bPreferred) return -1;
                 if (!aPreferred && bPreferred) return 1;
                 
-                // TERTIARY: Fallback ranks
+                // QUATERNARY: Fallback ranks
                 const aFallback = requirement.fallback_ranks?.includes(aRank);
                 const bFallback = requirement.fallback_ranks?.includes(bRank);
                 if (aFallback && !bFallback) return -1;
                 if (!aFallback && bFallback) return 1;
                 
-                // QUATERNARY: Rank order (lower rank first)
+                // QUINARY: Rank order (lower rank first)
                 const aRankOrder = getRankOrder(aRank);
                 const bRankOrder = getRankOrder(bRank);
                 if (aRankOrder !== bRankOrder) {
                   return aRankOrder - bRankOrder;
                 }
                 
-                // QUINARY: Alphabetical by last name, then first name
+                // SENARY: Alphabetical by last name, then first name
                 const aLastName = (a.last_name || '').toLowerCase();
                 const bLastName = (b.last_name || '').toLowerCase();
                 if (aLastName !== bLastName) {
