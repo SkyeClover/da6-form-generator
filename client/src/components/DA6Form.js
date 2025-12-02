@@ -1191,6 +1191,8 @@ const DA6Form = () => {
 
   // Calculate and update days since last duty for all soldiers in the roster
   // This ensures fairness across all DA6 forms/duties
+  // Note: Currently not used - days since last duty is calculated from appointments
+  // eslint-disable-next-line no-unused-vars
   const updateSoldiersDaysSinceDuty = async () => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return;
     
@@ -1409,6 +1411,8 @@ const DA6Form = () => {
   };
 
   // Roll back days since last duty for a cancelled form
+  // Note: Currently not used - days since last duty is calculated from appointments
+  // eslint-disable-next-line no-unused-vars
   const rollbackDaysSinceDutyForCancelledForm = async (cancelledDate) => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0 || !cancelledDate) return;
     
@@ -1733,8 +1737,10 @@ const DA6Form = () => {
   const handleSave = async (status = 'draft', cancelledDate = null) => {
     try {
       setSaving(true);
+      // eslint-disable-next-line no-unused-vars
       const wasComplete = id && formData.status === 'complete';
       const wasCancelled = id && formData.status === 'cancelled';
+      // eslint-disable-next-line no-unused-vars
       const isCompleting = status === 'complete';
       const isCancelling = status === 'cancelled';
       
