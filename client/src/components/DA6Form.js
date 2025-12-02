@@ -988,7 +988,6 @@ const DA6Form = () => {
       }
       
       // Create appointments for each soldier's duty ranges
-      const BATCH_SIZE = 5;
       const BATCH_DELAY = 200;
       const authErrorRef = { value: false };
       
