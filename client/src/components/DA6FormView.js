@@ -17,6 +17,34 @@ const DA6FormView = () => {
   const [assignmentsMap, setAssignmentsMap] = useState({}); // { soldierId: { dateStr: assignment } }
   const [overlappingForms, setOverlappingForms] = useState([]); // Forms with the same period
 
+  const findOverlappingForms = useCallback(async () => {
+    if (!form?.period_start || !form?.period_end) return;
+    
+    try {
+      const { data } = await apiClient.get('/da6-forms');
+      const allForms = data.forms || [];
+      
+      const start = new Date(form.period_start);
+      const end = new Date(form.period_end);
+      
+      const overlapping = allForms.filter(f => {
+        if (f.id === form.id) return false; // Exclude current form
+        if (!f.period_start || !f.period_end) return false;
+        if (f.status === 'cancelled') return false;
+        
+        const fStart = new Date(f.period_start);
+        const fEnd = new Date(f.period_end);
+        
+        // Check if periods match exactly (same start and end dates)
+        return fStart.getTime() === start.getTime() && fEnd.getTime() === end.getTime();
+      });
+      
+      setOverlappingForms(overlapping);
+    } catch (error) {
+      console.error('Error finding overlapping forms:', error);
+    }
+  }, [form]);
+
   useEffect(() => {
     fetchForm();
     fetchSoldiers();
@@ -313,34 +341,6 @@ const DA6FormView = () => {
       setOtherForms([]);
     }
   };
-
-  const findOverlappingForms = useCallback(async () => {
-    if (!form?.period_start || !form?.period_end) return;
-    
-    try {
-      const { data } = await apiClient.get('/da6-forms');
-      const allForms = data.forms || [];
-      
-      const start = new Date(form.period_start);
-      const end = new Date(form.period_end);
-      
-      const overlapping = allForms.filter(f => {
-        if (f.id === form.id) return false; // Exclude current form
-        if (!f.period_start || !f.period_end) return false;
-        if (f.status === 'cancelled') return false;
-        
-        const fStart = new Date(f.period_start);
-        const fEnd = new Date(f.period_end);
-        
-        // Check if periods match exactly (same start and end dates)
-        return fStart.getTime() === start.getTime() && fEnd.getTime() === end.getTime();
-      });
-      
-      setOverlappingForms(overlapping);
-    } catch (error) {
-      console.error('Error finding overlapping forms:', error);
-    }
-  }, [form]);
 
   const getAppointmentsForSoldier = (soldierId) => {
     return soldierAppointments[soldierId] || [];
