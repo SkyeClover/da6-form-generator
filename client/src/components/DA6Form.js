@@ -328,12 +328,10 @@ const DA6Form = () => {
         ? (data.forms || []).filter(f => f.id !== id)
         : (data.forms || []);
       
-      // Filter out draft forms and test forms (forms with "test" in the name, case-insensitive)
+      // Filter out test forms (forms with "test" in the name, case-insensitive)
       // This prevents "ghost" rosters from appearing
+      // NOTE: We keep draft forms in the list - they're just not auto-selected for cross-roster checking
       otherForms = otherForms.filter(f => {
-        // Exclude draft forms
-        if (f.status === 'draft') return false;
-        
         // Exclude test forms (forms with "test" in unit_name, case-insensitive)
         const unitName = (f.unit_name || '').toLowerCase();
         if (unitName.includes('test')) {
