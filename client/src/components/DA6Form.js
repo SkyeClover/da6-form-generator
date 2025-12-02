@@ -771,7 +771,6 @@ const DA6Form = () => {
                 
                 // Get appointments once for all checks
                 const appointments = getAppointmentsForSoldier(soldier.id);
-                const dateStr = current.toISOString().split('T')[0];
                 
                 // CRITICAL: Check if soldier has ANY appointment on this date (duty or pass)
                 // This includes checking for duty appointments (CQ, SD, D) and pass appointments (P)

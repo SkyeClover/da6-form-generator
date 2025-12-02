@@ -1236,29 +1236,53 @@ const DA6FormView = () => {
     return assignmentsMap;
   };
 
-  // Memoize assignments map - include soldiers in key so it regenerates when soldiers load
+  // Build assignments map from stored assignments (source of truth)
+  // Only regenerate if stored assignments don't exist
+  const buildAssignmentsMapFromStored = () => {
+    if (!form?.form_data?.assignments) return {};
+    
+    const map = {};
+    const storedAssignments = form.form_data.assignments || [];
+    
+    storedAssignments.forEach(assignment => {
+      if (!assignment.soldier_id || !assignment.date) return;
+      
+      if (!map[assignment.soldier_id]) {
+        map[assignment.soldier_id] = {};
+      }
+      
+      map[assignment.soldier_id][assignment.date] = {
+        duty: assignment.duty || false,
+        exception_code: assignment.exception_code || null
+      };
+    });
+    
+    return map;
+  };
+
+  // Memoize assignments map - use form ID and updated_at only (not soldiers, as they may change)
   const assignmentsMapRef = useRef({});
-  const soldiersKey = soldiers.length > 0 ? soldiers.map(s => s.id).sort().join(',') : '';
-  const assignmentsMapKey = form && soldiers.length > 0 
-    ? `${form.id}-${form.updated_at}-${soldiersKey.substring(0, 50)}` 
+  const assignmentsMapKey = form 
+    ? `${form.id}-${form.updated_at || form.created_at}` 
     : null;
   
-  if (!assignmentsMapRef.current[assignmentsMapKey] && form && soldiers.length > 0) {
-    assignmentsMapRef.current = {};
-    const generatedMap = generateAssignmentsMap();
-    assignmentsMapRef.current[assignmentsMapKey] = generatedMap;
-    // Debug: log assignment count
-    const totalAssignments = Object.values(generatedMap).reduce((sum, soldierAssignments) => {
-      return sum + Object.keys(soldierAssignments).length;
-    }, 0);
-    console.log('Generated assignments map:', {
-      soldiersWithAssignments: Object.keys(generatedMap).length,
-      totalAssignments: totalAssignments,
-      sample: Object.entries(generatedMap).slice(0, 3).map(([id, dates]) => ({
-        soldierId: id,
-        dates: Object.keys(dates)
-      }))
-    });
+  if (!assignmentsMapRef.current[assignmentsMapKey] && form) {
+    // First try to use stored assignments (source of truth)
+    const storedMap = buildAssignmentsMapFromStored();
+    
+    if (Object.keys(storedMap).length > 0) {
+      // Use stored assignments
+      assignmentsMapRef.current[assignmentsMapKey] = storedMap;
+      console.log('[Assignments Map] Using stored assignments from form data');
+    } else if (soldiers.length > 0) {
+      // Fallback: regenerate if no stored assignments exist
+      assignmentsMapRef.current[assignmentsMapKey] = {};
+      const generatedMap = generateAssignmentsMap();
+      assignmentsMapRef.current[assignmentsMapKey] = generatedMap;
+      console.log('[Assignments Map] Generated assignments (no stored assignments found)');
+    } else {
+      assignmentsMapRef.current[assignmentsMapKey] = {};
+    }
   }
   
   const assignmentsMap = assignmentsMapRef.current[assignmentsMapKey] || {};
