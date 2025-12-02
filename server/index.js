@@ -110,7 +110,8 @@ app.post('/api/da6-forms', verifyAuth, async (req, res) => {
         unit_name: req.body.unit_name,
         period_start: req.body.period_start,
         period_end: req.body.period_end,
-        status: req.body.status || 'draft'
+        status: req.body.status || 'draft',
+        cancelled_date: req.body.cancelled_date || null
       })
       .select()
       .single();
@@ -125,16 +126,26 @@ app.post('/api/da6-forms', verifyAuth, async (req, res) => {
 
 app.put('/api/da6-forms/:id', verifyAuth, async (req, res) => {
   try {
+    const updateData = {
+      form_data: req.body.form_data,
+      unit_name: req.body.unit_name,
+      period_start: req.body.period_start,
+      period_end: req.body.period_end,
+      status: req.body.status,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Only set cancelled_date if status is 'cancelled' and cancelled_date is provided
+    if (req.body.status === 'cancelled' && req.body.cancelled_date) {
+      updateData.cancelled_date = req.body.cancelled_date;
+    } else if (req.body.status !== 'cancelled') {
+      // Clear cancelled_date if status is not cancelled
+      updateData.cancelled_date = null;
+    }
+    
     const { data, error } = await supabase
       .from('da6_forms')
-      .update({
-        form_data: req.body.form_data,
-        unit_name: req.body.unit_name,
-        period_start: req.body.period_start,
-        period_end: req.body.period_end,
-        status: req.body.status,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
       .select()

@@ -63,6 +63,22 @@
   color: #856404;
 }
 
+.status-in_progress {
+  background: #cfe2ff;
+  color: #084298;
+}
+
+.status-complete {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Legacy status support */
 .status-completed {
   background: #d4edda;
   color: #155724;
