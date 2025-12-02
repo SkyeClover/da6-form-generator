@@ -187,21 +187,28 @@ const DA6Form = () => {
       setSelectedSoldiers(selected);
       setExceptions(exclusions);
       
-      // Auto-detect 'in_progress' status if current date is within duty period
-      // Only auto-detect for 'draft' forms - don't override 'complete' or 'cancelled' statuses
+      // Auto-detect status based on current date and period dates
       let formStatus = form.status || 'draft';
-      if (formStatus === 'draft' && form.period_start && form.period_end) {
+      if (formStatus !== 'cancelled' && form.period_start && form.period_end) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const periodStart = new Date(form.period_start);
         periodStart.setHours(0, 0, 0, 0);
         const periodEnd = new Date(form.period_end);
         periodEnd.setHours(0, 0, 0, 0);
+        const dayAfterPeriodEnd = new Date(periodEnd);
+        dayAfterPeriodEnd.setDate(dayAfterPeriodEnd.getDate() + 1);
+        dayAfterPeriodEnd.setHours(0, 0, 0, 0);
         
-        // If current date is within the duty period and status is draft, set to in_progress
-        if (today >= periodStart && today <= periodEnd) {
+        // If current date is on or after the day after period_end, set to complete
+        if (today >= dayAfterPeriodEnd) {
+          formStatus = 'complete';
+        }
+        // If current date is within the duty period, set to in_progress
+        else if (today >= periodStart && today <= periodEnd) {
           formStatus = 'in_progress';
         }
+        // Otherwise keep as draft (or existing status if not draft)
       }
       
       setFormData({
@@ -929,22 +936,27 @@ const DA6Form = () => {
     return assignments;
   };
 
-  // Create duty appointments in soldier profiles when form is completed
-  const createDutyAppointments = async (formId) => {
+  // Create duty and days-off appointments in soldier profiles when form is saved
+  // This enables automatic cross-roster checking
+  const createDutyAndDaysOffAppointments = async (formId) => {
     if (!formData.period_start || !formData.period_end || selectedSoldiers.size === 0) return;
     
     try {
       const assignments = generateAssignments();
       const dutyType = formData.duty_config?.nature_of_duty || 'Duty';
       
-      // Group duty assignments by soldier and date ranges
+      // Group duty assignments and days-off by soldier and date ranges
       const soldierDutyRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
+      const soldierDaysOffRanges = {}; // { soldierId: [{ start_date, end_date, dates: [dateStr] }] }
       
       assignments.forEach(assignment => {
-        if (assignment.duty && !assignment.exception_code && assignment.soldier_id) {
-          const soldierId = assignment.soldier_id;
-          const dateStr = assignment.date;
-          
+        if (!assignment.soldier_id) return;
+        
+        const soldierId = assignment.soldier_id;
+        const dateStr = assignment.date;
+        
+        // Handle duty assignments (actual duty, not exceptions)
+        if (assignment.duty && !assignment.exception_code) {
           if (!soldierDutyRanges[soldierId]) {
             soldierDutyRanges[soldierId] = [];
           }
@@ -954,7 +966,6 @@ const DA6Form = () => {
             const lastDate = range.dates[range.dates.length - 1];
             const date = new Date(dateStr);
             const lastDateObj = new Date(lastDate);
-            // Check if this date is consecutive to the last date in the range
             const daysDiff = Math.floor((date - lastDateObj) / (1000 * 60 * 60 * 24));
             return daysDiff <= 1; // Same day or next day
           });
@@ -968,7 +979,38 @@ const DA6Form = () => {
             soldierDutyRanges[soldierId].push(currentRange);
           } else {
             currentRange.dates.push(dateStr);
-            // Update end_date if this is later
+            if (dateStr > currentRange.end_date) {
+              currentRange.end_date = dateStr;
+            }
+            if (dateStr < currentRange.start_date) {
+              currentRange.start_date = dateStr;
+            }
+          }
+        }
+        
+        // Handle days-off assignments (P exception code)
+        if (assignment.exception_code === 'P') {
+          if (!soldierDaysOffRanges[soldierId]) {
+            soldierDaysOffRanges[soldierId] = [];
+          }
+          
+          let currentRange = soldierDaysOffRanges[soldierId].find(range => {
+            const lastDate = range.dates[range.dates.length - 1];
+            const date = new Date(dateStr);
+            const lastDateObj = new Date(lastDate);
+            const daysDiff = Math.floor((date - lastDateObj) / (1000 * 60 * 60 * 24));
+            return daysDiff <= 1;
+          });
+          
+          if (!currentRange) {
+            currentRange = {
+              start_date: dateStr,
+              end_date: dateStr,
+              dates: [dateStr]
+            };
+            soldierDaysOffRanges[soldierId].push(currentRange);
+          } else {
+            currentRange.dates.push(dateStr);
             if (dateStr > currentRange.end_date) {
               currentRange.end_date = dateStr;
             }
@@ -987,10 +1029,13 @@ const DA6Form = () => {
         exceptionCode = 'SD';
       }
       
-      // Create appointments for each soldier's duty ranges
+      // Remove existing appointments for this form first (to avoid duplicates on re-save)
+      await removeDutyAppointments(formId, null);
+      
       const BATCH_DELAY = 200;
       const authErrorRef = { value: false };
       
+      // Create duty appointments
       for (const [soldierId, ranges] of Object.entries(soldierDutyRanges)) {
         if (authErrorRef.value) break;
         
@@ -1012,29 +1057,58 @@ const DA6Form = () => {
           }
         }
         
-        // Add delay between soldiers
+        if (!authErrorRef.value) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
+      }
+      
+      // Create days-off (Pass) appointments
+      for (const [soldierId, ranges] of Object.entries(soldierDaysOffRanges)) {
+        if (authErrorRef.value) break;
+        
+        for (const range of ranges) {
+          try {
+            await apiClient.post(`/soldiers/${soldierId}/appointments`, {
+              start_date: range.start_date,
+              end_date: range.end_date,
+              reason: 'Pass (Days Off After Duty)',
+              exception_code: 'P',
+              notes: `DA6_FORM:${formId}` // Track which form created this appointment
+            });
+          } catch (err) {
+            if (err.response?.status === 401) {
+              authErrorRef.value = true;
+              break;
+            }
+            console.error(`Error creating days-off appointment for soldier ${soldierId}:`, err);
+          }
+        }
+        
         if (!authErrorRef.value) {
           await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
         }
       }
       
       if (!authErrorRef.value) {
-        console.log(`Created duty appointments for ${Object.keys(soldierDutyRanges).length} soldiers from form ${formId}`);
+        console.log(`Created duty and days-off appointments for ${Object.keys(soldierDutyRanges).length} soldiers from form ${formId}`);
       }
     } catch (error) {
-      console.error('Error creating duty appointments:', error);
-      // Don't block form completion if this fails
+      console.error('Error creating duty and days-off appointments:', error);
+      // Don't block form save if this fails
     }
   };
 
-  // Remove duty appointments when form is cancelled
-  // Only removes duties that haven't been completed yet (duty date is after cancellation date)
+  // Remove duty and days-off appointments created by a form
+  // If cancelledDate is provided, only removes appointments after that date (uncompleted duties)
+  // If cancelledDate is null, removes all appointments for this form (used when re-saving)
   const removeDutyAppointments = async (formId, cancelledDate) => {
     if (!formId) return;
     
     try {
-      const cancelledDateObj = cancelledDate ? new Date(cancelledDate) : new Date();
-      cancelledDateObj.setHours(0, 0, 0, 0);
+      const cancelledDateObj = cancelledDate ? new Date(cancelledDate) : null;
+      if (cancelledDateObj) {
+        cancelledDateObj.setHours(0, 0, 0, 0);
+      }
       
       // Get all appointments for selected soldiers
       const appointmentsToRemove = [];
@@ -1049,19 +1123,22 @@ const DA6Form = () => {
             apt.notes && apt.notes.includes(`DA6_FORM:${formId}`)
           );
           
-          // Only remove appointments where the duty date is after the cancellation date
-          // (i.e., duties that haven't been completed yet)
           for (const apt of formAppointments) {
-            const appointmentStart = new Date(apt.start_date);
-            appointmentStart.setHours(0, 0, 0, 0);
-            
-            // If the appointment starts on or after the cancellation date, remove it
-            // This means the soldier hadn't completed the duty yet when the roster was cancelled
-            if (appointmentStart >= cancelledDateObj) {
-              appointmentsToRemove.push({ ...apt, soldierId });
+            // If cancelledDate is provided, only remove uncompleted appointments
+            // If cancelledDate is null, remove all (for re-saving)
+            if (cancelledDateObj) {
+              const appointmentStart = new Date(apt.start_date);
+              appointmentStart.setHours(0, 0, 0, 0);
+              
+              if (appointmentStart >= cancelledDateObj) {
+                appointmentsToRemove.push({ ...apt, soldierId });
+              } else {
+                // Duty was already completed before cancellation - keep it
+                console.log(`Keeping completed appointment for soldier ${soldierId} on ${apt.start_date} (completed before cancellation)`);
+              }
             } else {
-              // Duty was already completed before cancellation - keep it in the profile
-              console.log(`Keeping completed duty appointment for soldier ${soldierId} on ${apt.start_date} (completed before cancellation on ${cancelledDate})`);
+              // Remove all appointments for this form (re-saving)
+              appointmentsToRemove.push({ ...apt, soldierId });
             }
           }
         } catch (err) {
@@ -1073,7 +1150,6 @@ const DA6Form = () => {
       }
       
       if (appointmentsToRemove.length === 0) {
-        console.log(`No uncompleted duty appointments to remove for cancelled form ${formId}`);
         return;
       }
       
@@ -1105,11 +1181,11 @@ const DA6Form = () => {
       }
       
       if (!authErrorRef.value) {
-        console.log(`Removed ${appointmentsToRemove.length} uncompleted duty appointment(s) for cancelled form ${formId}`);
+        console.log(`Removed ${appointmentsToRemove.length} appointment(s) for form ${formId}`);
       }
     } catch (error) {
-      console.error('Error removing duty appointments:', error);
-      // Don't block cancellation if this fails
+      console.error('Error removing appointments:', error);
+      // Don't block save if this fails
     }
   };
 
@@ -1689,56 +1765,39 @@ const DA6Form = () => {
       if (id) {
         await apiClient.put(`/da6-forms/${id}`, payload);
         
-        // If form was complete and is being edited, or if completing, update days
-        if (wasComplete || isCompleting) {
-          setSaving(false);
-          if (isCompleting) {
-            // Update based on this form only
-            setUpdatingSoldiers(true);
-            await updateSoldiersDaysSinceDuty();
-            // Create duty appointments in soldier profiles
-            await createDutyAppointments(id);
-            setUpdatingSoldiers(false);
-          }
-          navigate(`/forms/${id}/view`);
-        } else if (isCancelling || wasCancelled) {
-          // Handle cancellation - roll back days since last duty and remove appointments
-          setSaving(false);
+        // Create/update duty and days-off appointments whenever form is saved
+        // This enables automatic cross-roster checking
+        setUpdatingSoldiers(true);
+        await createDutyAndDaysOffAppointments(id);
+        setUpdatingSoldiers(false);
+        
+        if (isCancelling || wasCancelled) {
+          // Handle cancellation - remove uncompleted appointments
           setUpdatingSoldiers(true);
-          await rollbackDaysSinceDutyForCancelledForm(cancelledDate);
-          // Remove uncompleted duty appointments created by this form
-          if (id) {
-            await removeDutyAppointments(id, cancelledDate);
-          }
+          await removeDutyAppointments(id, cancelledDate);
           setUpdatingSoldiers(false);
-          alert('Form cancelled. Days since last duty have been rolled back and uncompleted duty appointments removed.');
+          alert('Form cancelled. Uncompleted duty appointments have been removed.');
           navigate('/forms');
         } else {
           setSaving(false);
-          alert('Form saved successfully!');
+          alert('Form saved successfully! Duty appointments have been updated in soldier profiles.');
           navigate('/forms');
         }
       } else {
         const { data } = await apiClient.post('/da6-forms', payload);
         const newFormId = data.form.id;
         
-        // Update days since last duty when form is completed
-        if (status === 'complete') {
-          setSaving(false);
-          setUpdatingSoldiers(true);
-          await updateSoldiersDaysSinceDuty();
-          // Create duty appointments in soldier profiles
-          await createDutyAppointments(newFormId);
-          setUpdatingSoldiers(false);
-          navigate(`/forms/${newFormId}/view`);
-        } else if (isCancelling) {
+        // Create duty and days-off appointments for new form
+        setUpdatingSoldiers(true);
+        await createDutyAndDaysOffAppointments(newFormId);
+        setUpdatingSoldiers(false);
+        
+        if (isCancelling) {
           // Handle cancellation for new form (shouldn't happen, but handle it)
-          setSaving(false);
           setUpdatingSoldiers(true);
-          await rollbackDaysSinceDutyForCancelledForm(cancelledDate);
           await removeDutyAppointments(newFormId, cancelledDate);
           setUpdatingSoldiers(false);
-          alert('Form cancelled. Days since last duty have been rolled back and uncompleted duty appointments removed.');
+          alert('Form cancelled. Uncompleted duty appointments have been removed.');
           navigate('/forms');
         } else {
           setSaving(false);

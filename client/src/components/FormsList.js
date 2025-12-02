@@ -79,30 +79,73 @@ const FormsList = () => {
     // Check if deleting this form will affect other forms
     const affectedForms = checkAffectedForms(formToDelete);
     
+    // Check if form is before end date (will affect days since last duty)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const periodEnd = new Date(formToDelete.period_end);
+    periodEnd.setHours(0, 0, 0, 0);
+    const isBeforeEndDate = today < periodEnd;
+    
     let confirmMessage = 'Are you sure you want to delete this form?';
+    
+    if (isBeforeEndDate) {
+      confirmMessage += `\n\n⚠️ WARNING: This form's duty period hasn't ended yet (ends ${periodEnd.toLocaleDateString()}). Deleting it will remove duty appointments from soldier profiles and may affect "days since last duty" calculations for other forms.`;
+    }
     
     if (affectedForms.length > 0) {
       const affectedFormNames = affectedForms.map(f => 
         `${f.unit_name} (${new Date(f.period_start).toLocaleDateString()} - ${new Date(f.period_end).toLocaleDateString()})`
       ).join('\n  - ');
       
-      confirmMessage += `\n\n⚠️ WARNING: Deleting this form will affect ${affectedForms.length} other form(s) that share soldiers:\n  - ${affectedFormNames}\n\nDays since last duty will be recalculated for all affected soldiers.`;
-    } else {
-      confirmMessage += '\n\nDays since last duty will be recalculated for all soldiers.';
+      confirmMessage += `\n\n⚠️ WARNING: Deleting this form will affect ${affectedForms.length} other form(s) that share soldiers:\n  - ${affectedFormNames}`;
     }
     
     if (!window.confirm(confirmMessage)) return;
     
     try {
+      // Before deleting, remove duty appointments created by this form
+      // This ensures soldier profiles are cleaned up
+      if (formToDelete.form_data?.selected_soldiers) {
+        try {
+          // Remove appointments for all soldiers in this form
+          const selectedSoldiers = formToDelete.form_data.selected_soldiers || [];
+          for (const soldierId of selectedSoldiers) {
+            try {
+              const { data } = await apiClient.get(`/soldiers/${soldierId}/appointments`);
+              const appointments = data.appointments || [];
+              
+              // Find and delete appointments created by this form
+              const formAppointments = appointments.filter(apt => 
+                apt.notes && apt.notes.includes(`DA6_FORM:${id}`)
+              );
+              
+              for (const apt of formAppointments) {
+                await apiClient.delete(`/soldiers/${soldierId}/appointments/${apt.id}`);
+              }
+            } catch (err) {
+              // Continue even if one soldier's appointments fail to delete
+              console.error(`Error removing appointments for soldier ${soldierId}:`, err);
+            }
+          }
+        } catch (err) {
+          console.error('Error removing appointments before form deletion:', err);
+          // Continue with deletion even if appointment cleanup fails
+        }
+      }
+      
       await apiClient.delete(`/da6-forms/${id}`);
       
       fetchForms();
       
-      if (affectedForms.length > 0) {
-        alert(`Form deleted successfully. ${affectedForms.length} other form(s) may need to be reviewed as they share soldiers with the deleted form. Days since last duty will be recalculated automatically.`);
-      } else {
-        alert('Form deleted successfully. Days since last duty will be recalculated automatically.');
+      let alertMessage = 'Form deleted successfully.';
+      if (isBeforeEndDate) {
+        alertMessage += ' Duty appointments have been removed from soldier profiles.';
       }
+      if (affectedForms.length > 0) {
+        alertMessage += ` ${affectedForms.length} other form(s) may need to be reviewed as they share soldiers with the deleted form.`;
+      }
+      
+      alert(alertMessage);
     } catch (error) {
       console.error('Error deleting form:', error);
       alert('Error deleting form. Please try again.');
