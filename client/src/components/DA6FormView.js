@@ -464,7 +464,7 @@ const DA6FormView = () => {
     const exceptions = form.form_data.exceptions || {};
     
     // Helper function to check if soldier has ANY exception on a given date
-    // This checks: user-defined exceptions, appointments, cross-roster conflicts
+    // This checks: user-defined exceptions, appointments, cross-roster conflicts, and assignments in current form
     const hasExceptionOnDate = (soldierId, dateStr) => {
       // Check user-defined exceptions first
       const soldierExceptions = exceptions[soldierId] || {};
@@ -475,6 +475,20 @@ const DA6FormView = () => {
       // Check appointments
       if (isSoldierUnavailableOnDate(soldierId, new Date(dateStr))) {
         return true;
+      }
+      
+      // CRITICAL: Check if soldier already has a duty assignment in the current form on this date
+      // This prevents assigning duty on consecutive days within the same form
+      if (assignmentsMap[soldierId] && assignmentsMap[soldierId][dateStr]) {
+        const existingAssignment = assignmentsMap[soldierId][dateStr];
+        // If it's a duty assignment (not just a pass/exception), they're unavailable
+        if (existingAssignment.duty && !existingAssignment.exception_code) {
+          return true;
+        }
+        // If it's a pass (P exception), they're also unavailable (days off after duty)
+        if (existingAssignment.exception_code === 'P') {
+          return true;
+        }
       }
       
       // Note: Cross-roster checking would go here if we had access to other forms
@@ -1019,31 +1033,29 @@ const DA6FormView = () => {
             
             // STEP 3 (continued): Mark days off after duty with exception code 'P' (Pass)
             // This applies regardless of whether it's a weekend or holiday
+            // IMPORTANT: Always assign pass for the next day(s) after duty, even if it's after the period end
             for (let i = 1; i <= daysOffAfterDuty; i++) {
               const offDate = new Date(current);
               offDate.setDate(offDate.getDate() + i);
+              const offDateStr = offDate.toISOString().split('T')[0];
               
-              // Only mark if within the period range
-              if (offDate <= end) {
-                const offDateStr = offDate.toISOString().split('T')[0];
-                
-                // Check if there's an existing user-defined exception (don't override those)
-                const soldierExceptions = exceptions[soldierId] || {};
-                const existingException = soldierExceptions[offDateStr];
-                
-                // Only add 'P' if there's no user-defined exception
-                if (!existingException) {
-                  if (!assignmentsMap[soldierId]) {
-                    assignmentsMap[soldierId] = {};
-                  }
-                  // Always set 'P' for days off after duty (overwrite any auto-generated ones)
-                  assignmentsMap[soldierId][offDateStr] = {
-                    soldier_id: soldierId,
-                    date: offDateStr,
-                    exception_code: 'P',
-                    duty: 'P'
-                  };
+              // Check if there's an existing user-defined exception (don't override those)
+              const soldierExceptions = exceptions[soldierId] || {};
+              const existingException = soldierExceptions[offDateStr];
+              
+              // Only add 'P' if there's no user-defined exception
+              if (!existingException) {
+                if (!assignmentsMap[soldierId]) {
+                  assignmentsMap[soldierId] = {};
                 }
+                // Always set 'P' for days off after duty (overwrite any auto-generated ones)
+                // Note: We assign pass even if it's after the period end, as soldiers need their day off
+                assignmentsMap[soldierId][offDateStr] = {
+                  soldier_id: soldierId,
+                  date: offDateStr,
+                  exception_code: 'P',
+                  duty: 'P'
+                };
               }
             }
             });

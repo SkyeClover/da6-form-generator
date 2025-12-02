@@ -752,6 +752,23 @@ const DA6Form = () => {
                   }
                 }
                 
+                // CRITICAL: Check if soldier already has a duty assignment in the current form on this date
+                // This prevents assigning duty on consecutive days within the same form
+                const existingAssignment = assignments.find(a => 
+                  a.soldier_id === soldier.id && a.date === dateStr && a.duty && !a.exception_code
+                );
+                if (existingAssignment) {
+                  continue; // Skip this soldier, they already have duty on this date in the current form
+                }
+                
+                // Check if soldier has a pass (P exception) on this date (days off after duty)
+                const existingPass = assignments.find(a => 
+                  a.soldier_id === soldier.id && a.date === dateStr && a.exception_code === 'P'
+                );
+                if (existingPass) {
+                  continue; // Skip this soldier, they have a pass on this date (days off after duty)
+                }
+                
                 // Check if soldier has an appointment/unavailability on this date
                 if (isSoldierUnavailableOnDate(soldier.id, current)) {
                   continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
@@ -851,6 +868,23 @@ const DA6Form = () => {
                 }
               }
               
+              // CRITICAL: Check if soldier already has a duty assignment in the current form on this date
+              // This prevents assigning duty on consecutive days within the same form
+              const existingAssignment = assignments.find(a => 
+                a.soldier_id === soldier.id && a.date === dateStr && a.duty && !a.exception_code
+              );
+              if (existingAssignment) {
+                continue; // Skip this soldier, they already have duty on this date in the current form
+              }
+              
+              // Check if soldier has a pass (P exception) on this date (days off after duty)
+              const existingPass = assignments.find(a => 
+                a.soldier_id === soldier.id && a.date === dateStr && a.exception_code === 'P'
+              );
+              if (existingPass) {
+                continue; // Skip this soldier, they have a pass on this date (days off after duty)
+              }
+              
               // Check if soldier has an appointment/unavailability on this date
               if (isSoldierUnavailableOnDate(soldier.id, current)) {
                 continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
@@ -871,29 +905,27 @@ const DA6Form = () => {
             
             // Mark days off after duty with exception code 'P' (Pass)
             // This applies regardless of whether it's a weekend or holiday
+            // IMPORTANT: Always assign pass for the next day(s) after duty, even if it's after the period end
             for (let i = 1; i <= daysOffAfterDuty; i++) {
               const offDate = new Date(current);
               offDate.setDate(offDate.getDate() + i);
+              const offDateStr = offDate.toISOString().split('T')[0];
               
-              // Only mark if within the period range
-              if (offDate <= end) {
-                const offDateStr = offDate.toISOString().split('T')[0];
-                
-                // Only add if there's no existing exception for this date
-                const soldierExceptions = exceptions[soldierId] || {};
-                if (!soldierExceptions[offDateStr]) {
-                  // Check if we already added this days-off exception
-                  const alreadyAdded = assignments.some(a => 
-                    a.soldier_id === soldierId && a.date === offDateStr && a.exception_code === 'P'
-                  );
-                  if (!alreadyAdded) {
-                    assignments.push({
-                      soldier_id: soldierId,
-                      date: offDateStr,
-                      exception_code: 'P',
-                      duty: 'P'
-                    });
-                  }
+              // Only add if there's no existing exception for this date
+              const soldierExceptions = exceptions[soldierId] || {};
+              if (!soldierExceptions[offDateStr]) {
+                // Check if we already added this days-off exception
+                const alreadyAdded = assignments.some(a => 
+                  a.soldier_id === soldierId && a.date === offDateStr && a.exception_code === 'P'
+                );
+                if (!alreadyAdded) {
+                  // Note: We assign pass even if it's after the period end, as soldiers need their day off
+                  assignments.push({
+                    soldier_id: soldierId,
+                    date: offDateStr,
+                    exception_code: 'P',
+                    duty: 'P'
+                  });
                 }
               }
             }
