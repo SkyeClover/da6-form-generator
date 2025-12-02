@@ -1737,12 +1737,35 @@ const DA6Form = () => {
   const handleSave = async (status = 'draft', cancelledDate = null) => {
     try {
       setSaving(true);
-      // eslint-disable-next-line no-unused-vars
-      const wasComplete = id && formData.status === 'complete';
       const wasCancelled = id && formData.status === 'cancelled';
-      // eslint-disable-next-line no-unused-vars
-      const isCompleting = status === 'complete';
       const isCancelling = status === 'cancelled';
+      
+      // Auto-determine status based on dates (unless cancelling)
+      let finalStatus = status;
+      if (!isCancelling && formData.period_start && formData.period_end) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const periodStart = new Date(formData.period_start);
+        periodStart.setHours(0, 0, 0, 0);
+        const periodEnd = new Date(formData.period_end);
+        periodEnd.setHours(0, 0, 0, 0);
+        const dayAfterPeriodEnd = new Date(periodEnd);
+        dayAfterPeriodEnd.setDate(dayAfterPeriodEnd.getDate() + 1);
+        dayAfterPeriodEnd.setHours(0, 0, 0, 0);
+        
+        // If current date is on or after the day after period_end, set to complete
+        if (today >= dayAfterPeriodEnd) {
+          finalStatus = 'complete';
+        }
+        // If current date is within the duty period, set to in_progress
+        else if (today >= periodStart && today <= periodEnd) {
+          finalStatus = 'in_progress';
+        }
+        // Otherwise keep as draft
+        else {
+          finalStatus = 'draft';
+        }
+      }
       
       // Don't generate all assignments - they can be generated on-demand
       // Only store the source data to keep payload size manageable
@@ -1750,7 +1773,7 @@ const DA6Form = () => {
         unit_name: formData.unit_name,
         period_start: formData.period_start,
         period_end: formData.period_end,
-        status: status,
+        status: finalStatus,
         form_data: {
           // Store only essential data, not generated assignments
           selected_soldiers: Array.from(selectedSoldiers),
@@ -2463,31 +2486,13 @@ const DA6Form = () => {
             Save Draft
           </button>
           {formData.status !== 'cancelled' && (
-            <>
-              <button 
-                className="btn-secondary" 
-                onClick={() => handleSave('in_progress')}
-                disabled={formData.status === 'in_progress'}
-              >
-                Mark In Progress
-              </button>
-              <button 
-                className="btn-primary" 
-                onClick={() => handleSave('complete')}
-                disabled={formData.status === 'complete'}
-              >
-                Mark Complete
-              </button>
-              {formData.status !== 'draft' && (
-                <button 
-                  className="btn-danger" 
-                  onClick={handleCancel}
-                  style={{ backgroundColor: '#dc3545', color: 'white' }}
-                >
-                  Cancel Form
-                </button>
-              )}
-            </>
+            <button 
+              className="btn-danger" 
+              onClick={handleCancel}
+              style={{ backgroundColor: '#dc3545', color: 'white' }}
+            >
+              Cancel Form
+            </button>
           )}
         </div>
       </div>
