@@ -33,14 +33,23 @@ const DA6FormView = () => {
   const hasSyncedAppointments = useRef(false);
   
   useEffect(() => {
+    // Only sync appointments if we have stored assignments - don't sync if assignments are missing
+    // This prevents regenerating assignments when they should be stored
     if (soldiers.length > 0 && form?.form_data?.selected_soldiers && !hasSyncedAppointments.current) {
-      const syncAppointments = async () => {
-        const appointmentsMap = await fetchAllAppointments(soldiers.filter(s => form.form_data.selected_soldiers.includes(s.id)));
-        // Check if appointments exist for this form, and create them if missing
-        await checkAndCreateMissingAppointments(appointmentsMap);
-        hasSyncedAppointments.current = true;
-      };
-      syncAppointments();
+      const hasStoredAssignments = form.form_data?.assignments && form.form_data.assignments.length > 0;
+      
+      if (hasStoredAssignments) {
+        const syncAppointments = async () => {
+          const appointmentsMap = await fetchAllAppointments(soldiers.filter(s => form.form_data.selected_soldiers.includes(s.id)));
+          // Check if appointments exist for this form, and create them if missing
+          await checkAndCreateMissingAppointments(appointmentsMap);
+          hasSyncedAppointments.current = true;
+        };
+        syncAppointments();
+      } else {
+        // Don't sync if no stored assignments - wait for form to be properly saved
+        console.log('[Appointment Sync] Skipping sync - no stored assignments found. Form may need to be saved first.');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soldiers, form]);
@@ -1235,6 +1244,7 @@ const DA6FormView = () => {
 
   // Refetch form if assignments are missing (might be a race condition after save)
   const [hasRefetched, setHasRefetched] = useState(false);
+  const [isWaitingForAssignments, setIsWaitingForAssignments] = useState(false);
   
   useEffect(() => {
     if (!form || hasRefetched) return;
@@ -1246,14 +1256,23 @@ const DA6FormView = () => {
     
     if (!hasAssignments && hasSelectedSoldiers) {
       console.log('[Assignments Map] No stored assignments found, refetching form...');
+      setIsWaitingForAssignments(true);
       setHasRefetched(true);
-      fetchForm();
+      fetchForm().then(() => {
+        // After refetch, check again - if still no assignments, wait a bit more
+        setTimeout(() => {
+          setIsWaitingForAssignments(false);
+        }, 1000);
+      });
+    } else if (hasAssignments) {
+      setIsWaitingForAssignments(false);
     }
   }, [form, hasRefetched]);
   
   // Reset refetch flag when form ID changes
   useEffect(() => {
     setHasRefetched(false);
+    setIsWaitingForAssignments(false);
   }, [id]);
 
   // Build assignments map from stored assignments when form loads
@@ -1293,15 +1312,19 @@ const DA6FormView = () => {
     if (Object.keys(storedMap).length > 0) {
       // Use stored assignments
       setAssignmentsMap(storedMap);
+      setIsWaitingForAssignments(false);
       console.log('[Assignments Map] Using stored assignments from form data', {
         assignmentsCount: Object.keys(storedMap).length,
         totalAssignments: Object.values(storedMap).reduce((sum, dates) => sum + Object.keys(dates).length, 0)
       });
+    } else if (isWaitingForAssignments) {
+      // Still waiting for assignments to be loaded - don't change the map yet
+      console.log('[Assignments Map] Waiting for assignments to be loaded...');
     } else {
-      // Don't regenerate - wait for form to be refetched or show empty
+      // No assignments and not waiting - show empty (don't regenerate)
       // This prevents showing incorrect data
       setAssignmentsMap({});
-      console.log('[Assignments Map] No stored assignments found, waiting for form data...');
+      console.log('[Assignments Map] No stored assignments found. Form may need to be saved with assignments.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form?.id, form?.updated_at, form?.created_at, form?.form_data?.assignments?.length]);
