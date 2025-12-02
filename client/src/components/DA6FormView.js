@@ -1233,30 +1233,6 @@ const DA6FormView = () => {
     return assignmentsMap;
   };
 
-  // Build assignments map from stored assignments (source of truth)
-  // Only regenerate if stored assignments don't exist
-  const buildAssignmentsMapFromStored = () => {
-    if (!form?.form_data?.assignments) return {};
-    
-    const map = {};
-    const storedAssignments = form.form_data.assignments || [];
-    
-    storedAssignments.forEach(assignment => {
-      if (!assignment.soldier_id || !assignment.date) return;
-      
-      if (!map[assignment.soldier_id]) {
-        map[assignment.soldier_id] = {};
-      }
-      
-      map[assignment.soldier_id][assignment.date] = {
-        duty: assignment.duty || false,
-        exception_code: assignment.exception_code || null
-      };
-    });
-    
-    return map;
-  };
-
   // Build assignments map from stored assignments when form loads
   // Use state instead of ref so it triggers re-render when updated
   useEffect(() => {
