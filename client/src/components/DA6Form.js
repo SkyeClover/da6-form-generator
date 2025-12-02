@@ -769,6 +769,42 @@ const DA6Form = () => {
                   continue; // Skip this soldier, they have a pass on this date (days off after duty)
                 }
                 
+                // CRITICAL: Check if soldier had duty in another form on the previous day(s)
+                // If they had duty yesterday, they should have a day off today (P exception)
+                // This prevents assigning duty when they should be on pass after duty from another form
+                const appointments = getAppointmentsForSoldier(soldier.id);
+                let hadDutyPreviousDay = false;
+                
+                for (let i = 1; i <= daysOffAfterDuty; i++) {
+                  const previousDate = new Date(current);
+                  previousDate.setDate(previousDate.getDate() - i);
+                  const previousDateStr = previousDate.toISOString().split('T')[0];
+                  
+                  // Check if soldier had a duty appointment (CQ, SD, D) on the previous day
+                  const hadDuty = appointments.some(apt => {
+                    const start = new Date(apt.start_date);
+                    const end = new Date(apt.end_date);
+                    const checkDate = new Date(previousDateStr);
+                    
+                    // Check if the previous day falls within the appointment range
+                    if (checkDate >= start && checkDate <= end) {
+                      // Check if it's a duty appointment (not a pass)
+                      const dutyCodes = ['CQ', 'SD', 'D'];
+                      return dutyCodes.includes(apt.exception_code);
+                    }
+                    return false;
+                  });
+                  
+                  if (hadDuty) {
+                    hadDutyPreviousDay = true;
+                    break;
+                  }
+                }
+                
+                if (hadDutyPreviousDay) {
+                  continue; // Skip this soldier, they had duty on previous day and should have a day off today
+                }
+                
                 // Check if soldier has an appointment/unavailability on this date
                 if (isSoldierUnavailableOnDate(soldier.id, current)) {
                   continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
@@ -883,6 +919,42 @@ const DA6Form = () => {
               );
               if (existingPass) {
                 continue; // Skip this soldier, they have a pass on this date (days off after duty)
+              }
+              
+              // CRITICAL: Check if soldier had duty in another form on the previous day(s)
+              // If they had duty yesterday, they should have a day off today (P exception)
+              // This prevents assigning duty when they should be on pass after duty from another form
+              const appointments = getAppointmentsForSoldier(soldier.id);
+              let hadDutyPreviousDay = false;
+              
+              for (let i = 1; i <= daysOffAfterDuty; i++) {
+                const previousDate = new Date(current);
+                previousDate.setDate(previousDate.getDate() - i);
+                const previousDateStr = previousDate.toISOString().split('T')[0];
+                
+                // Check if soldier had a duty appointment (CQ, SD, D) on the previous day
+                const hadDuty = appointments.some(apt => {
+                  const start = new Date(apt.start_date);
+                  const end = new Date(apt.end_date);
+                  const checkDate = new Date(previousDateStr);
+                  
+                  // Check if the previous day falls within the appointment range
+                  if (checkDate >= start && checkDate <= end) {
+                    // Check if it's a duty appointment (not a pass)
+                    const dutyCodes = ['CQ', 'SD', 'D'];
+                    return dutyCodes.includes(apt.exception_code);
+                  }
+                  return false;
+                });
+                
+                if (hadDuty) {
+                  hadDutyPreviousDay = true;
+                  break;
+                }
+              }
+              
+              if (hadDutyPreviousDay) {
+                continue; // Skip this soldier, they had duty on previous day and should have a day off today
               }
               
               // Check if soldier has an appointment/unavailability on this date

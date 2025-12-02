@@ -28,17 +28,26 @@ const DA6FormView = () => {
     }
   }, [form]);
 
+  // Track if we've already synced appointments to prevent re-syncing on every render
+  const hasSyncedAppointments = useRef(false);
+  
   useEffect(() => {
-    if (soldiers.length > 0 && form?.form_data?.selected_soldiers) {
+    if (soldiers.length > 0 && form?.form_data?.selected_soldiers && !hasSyncedAppointments.current) {
       const syncAppointments = async () => {
         const appointmentsMap = await fetchAllAppointments(soldiers.filter(s => form.form_data.selected_soldiers.includes(s.id)));
         // Check if appointments exist for this form, and create them if missing
         await checkAndCreateMissingAppointments(appointmentsMap);
+        hasSyncedAppointments.current = true;
       };
       syncAppointments();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [soldiers, form]);
+  
+  // Reset sync flag when form ID changes
+  useEffect(() => {
+    hasSyncedAppointments.current = false;
+  }, [id]);
 
   const fetchForm = async () => {
     try {
@@ -472,9 +481,42 @@ const DA6FormView = () => {
         return true;
       }
       
-      // Check appointments
+      // Check appointments (this includes duty appointments and pass appointments from other forms)
       if (isSoldierUnavailableOnDate(soldierId, new Date(dateStr))) {
         return true;
+      }
+      
+      // CRITICAL: Check if soldier had duty in another form on the previous day(s)
+      // If they had duty yesterday, they should have a day off today (P exception)
+      // This prevents assigning duty when they should be on pass after duty from another form
+      const currentDate = new Date(dateStr);
+      const appointments = getAppointmentsForSoldier(soldierId);
+      
+      // Check if soldier had duty on previous day(s) that would give them a day off today
+      for (let i = 1; i <= daysOffAfterDuty; i++) {
+        const previousDate = new Date(currentDate);
+        previousDate.setDate(previousDate.getDate() - i);
+        const previousDateStr = previousDate.toISOString().split('T')[0];
+        
+        // Check if soldier had a duty appointment (CQ, SD, D) on the previous day
+        const hadDutyPreviousDay = appointments.some(apt => {
+          const start = new Date(apt.start_date);
+          const end = new Date(apt.end_date);
+          const checkDate = new Date(previousDateStr);
+          
+          // Check if the previous day falls within the appointment range
+          if (checkDate >= start && checkDate <= end) {
+            // Check if it's a duty appointment (not a pass)
+            const dutyCodes = ['CQ', 'SD', 'D'];
+            return dutyCodes.includes(apt.exception_code);
+          }
+          return false;
+        });
+        
+        if (hadDutyPreviousDay) {
+          // Soldier had duty on previous day, so they should have a day off today
+          return true;
+        }
       }
       
       // CRITICAL: Check if soldier already has a duty assignment in the current form on this date
@@ -490,9 +532,6 @@ const DA6FormView = () => {
           return true;
         }
       }
-      
-      // Note: Cross-roster checking would go here if we had access to other forms
-      // For now, cross-roster exceptions should be in the stored exceptions
       
       return false;
     };
