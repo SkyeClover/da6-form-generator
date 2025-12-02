@@ -2628,8 +2628,19 @@ const DA6Form = () => {
         await apiClient.put(`/da6-forms/${id}`, payload);
         savedFormId = id;
       } else {
-        const { data } = await apiClient.post('/da6-forms', payload);
-        savedFormId = data.form.id;
+        try {
+          const { data } = await apiClient.post('/da6-forms', payload);
+          savedFormId = data.form.id;
+        } catch (createError) {
+          // Check if it's a limit error (403)
+          if (createError.response?.status === 403 && createError.response?.data?.error) {
+            alert(createError.response.data.error);
+            setSaving(false);
+            setUpdatingSoldiers(false);
+            return;
+          }
+          throw createError; // Re-throw if it's not a limit error
+        }
       }
       
       // Update overlapping forms if multi-form optimization was used
@@ -2689,7 +2700,13 @@ const DA6Form = () => {
       setSaving(false);
       setUpdatingSoldiers(false);
       setRecalculating(false);
-      alert('Error saving form. Please try again.');
+      
+      // Check if it's a limit error (403) - this shouldn't happen here since we catch it above, but just in case
+      if (error.response?.status === 403 && error.response?.data?.error) {
+        alert(error.response.data.error);
+      } else {
+        alert('Error saving form. Please try again.');
+      }
     }
   };
 
@@ -4082,14 +4099,27 @@ const DA6Form = () => {
                 <p style={{ marginBottom: '8px', color: '#856404' }}>
                   <strong>Found {overlappingForms.length} other form(s) with the same period:</strong>
                 </p>
-                <ul style={{ marginTop: '8px', marginBottom: '8px', paddingLeft: '20px', color: '#856404' }}>
+                <ul style={{ marginTop: '8px', marginBottom: '10px', paddingLeft: '20px', color: '#856404' }}>
                   {overlappingForms.map(form => (
-                    <li key={form.id}>{form.unit_name || form.id}</li>
+                    <li key={form.id} style={{ marginBottom: '5px' }}>
+                      <strong>{form.unit_name || form.id}</strong> - {form.form_data?.duty_config?.nature_of_duty || 'Duty'}
+                    </li>
                   ))}
                 </ul>
-                <p style={{ marginBottom: 0, color: '#856404', fontSize: '14px' }}>
-                  When you save this form, all overlapping forms will be optimized together to ensure proper "days since last duty" distribution across all duties.
+                <p style={{ marginBottom: '10px', color: '#856404', fontSize: '14px' }}>
+                  When you save this form, all {overlappingForms.length + 1} overlapping forms will be optimized together to ensure proper "days since last duty" distribution across all duties.
                 </p>
+                <button 
+                  className="btn-primary"
+                  style={{ backgroundColor: '#856404', borderColor: '#856404', marginTop: '5px' }}
+                  onClick={() => {
+                    const periodStart = encodeURIComponent(formData.period_start);
+                    const periodEnd = encodeURIComponent(formData.period_end);
+                    navigate(`/master-roster/${periodStart}/${periodEnd}`);
+                  }}
+                >
+                  📋 View Master Roster ({overlappingForms.length + 1} forms)
+                </button>
               </div>
             )}
             <h3>Cross-Roster Checking</h3>

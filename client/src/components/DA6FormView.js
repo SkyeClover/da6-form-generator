@@ -15,6 +15,7 @@ const DA6FormView = () => {
   const [soldierAppointments, setSoldierAppointments] = useState({}); // { soldierId: [appointments] }
   const [otherForms, setOtherForms] = useState([]); // For cross-roster checking
   const [assignmentsMap, setAssignmentsMap] = useState({}); // { soldierId: { dateStr: assignment } }
+  const [overlappingForms, setOverlappingForms] = useState([]); // Forms with the same period
 
   useEffect(() => {
     fetchForm();
@@ -31,6 +32,11 @@ const DA6FormView = () => {
         return true;
       });
       fetchOtherForms(selectedFormIds);
+    }
+    
+    // Find overlapping forms for Master Roster
+    if (form?.period_start && form?.period_end) {
+      findOverlappingForms();
     }
   }, [form]);
 
@@ -305,6 +311,34 @@ const DA6FormView = () => {
     } catch (error) {
       console.error('Error fetching other forms for cross-roster checking:', error);
       setOtherForms([]);
+    }
+  };
+
+  const findOverlappingForms = async () => {
+    if (!form?.period_start || !form?.period_end) return;
+    
+    try {
+      const { data } = await apiClient.get('/da6-forms');
+      const allForms = data.forms || [];
+      
+      const start = new Date(form.period_start);
+      const end = new Date(form.period_end);
+      
+      const overlapping = allForms.filter(f => {
+        if (f.id === form.id) return false; // Exclude current form
+        if (!f.period_start || !f.period_end) return false;
+        if (f.status === 'cancelled') return false;
+        
+        const fStart = new Date(f.period_start);
+        const fEnd = new Date(f.period_end);
+        
+        // Check if periods match exactly (same start and end dates)
+        return fStart.getTime() === start.getTime() && fEnd.getTime() === end.getTime();
+      });
+      
+      setOverlappingForms(overlapping);
+    } catch (error) {
+      console.error('Error finding overlapping forms:', error);
     }
   };
 
@@ -1979,6 +2013,20 @@ const DA6FormView = () => {
             >
               Compact List
             </button>
+            {overlappingForms.length > 0 && (
+              <button 
+                className="btn-primary"
+                style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+                onClick={() => {
+                  const periodStart = encodeURIComponent(form.period_start);
+                  const periodEnd = encodeURIComponent(form.period_end);
+                  navigate(`/master-roster/${periodStart}/${periodEnd}`);
+                }}
+                title={`View Master Roster with ${overlappingForms.length + 1} overlapping form(s)`}
+              >
+                📋 Master Roster ({overlappingForms.length + 1})
+              </button>
+            )}
             <button className="btn-secondary" onClick={() => navigate('/forms')}>
               Back to Forms
             </button>
@@ -1990,6 +2038,39 @@ const DA6FormView = () => {
             </button>
           </div>
         </div>
+
+        {overlappingForms.length > 0 && (
+          <div style={{ 
+            backgroundColor: '#d1ecf1', 
+            border: '2px solid #0c5460', 
+            borderRadius: '4px', 
+            padding: '15px', 
+            marginBottom: '20px' 
+          }}>
+            <h3 style={{ marginTop: 0, color: '#0c5460' }}>
+              📋 Master Roster Available
+            </h3>
+            <p style={{ marginBottom: '10px', color: '#0c5460' }}>
+              <strong>This form overlaps with {overlappingForms.length} other form(s) for the same period:</strong>
+            </p>
+            <ul style={{ marginBottom: '10px', color: '#0c5460' }}>
+              {overlappingForms.map(f => (
+                <li key={f.id}>{f.unit_name || f.id} - {f.form_data?.duty_config?.nature_of_duty || 'Duty'}</li>
+              ))}
+            </ul>
+            <button 
+              className="btn-primary"
+              style={{ backgroundColor: '#0c5460', borderColor: '#0c5460' }}
+              onClick={() => {
+                const periodStart = encodeURIComponent(form.period_start);
+                const periodEnd = encodeURIComponent(form.period_end);
+                navigate(`/master-roster/${periodStart}/${periodEnd}`);
+              }}
+            >
+              View Master Roster ({overlappingForms.length + 1} forms)
+            </button>
+          </div>
+        )}
 
         <div className="roster-info">
           <div className="info-row">

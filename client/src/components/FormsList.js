@@ -9,11 +9,20 @@ const FormsList = () => {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingFormId, setDeletingFormId] = useState(null);
+  const [overlappingGroups, setOverlappingGroups] = useState([]); // Groups of forms with the same period
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchForms();
   }, []);
+
+  useEffect(() => {
+    // Find overlapping form groups (forms with the same period)
+    if (forms.length > 0) {
+      const groups = findOverlappingGroups(forms);
+      setOverlappingGroups(groups);
+    }
+  }, [forms]);
 
   const fetchForms = async () => {
     try {
@@ -24,6 +33,43 @@ const FormsList = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const findOverlappingGroups = (formsList) => {
+    const groups = [];
+    const processed = new Set();
+    
+    formsList.forEach(form => {
+      if (processed.has(form.id)) return;
+      if (!form.period_start || !form.period_end) return;
+      if (form.status === 'cancelled') return;
+      
+      const start = new Date(form.period_start);
+      const end = new Date(form.period_end);
+      
+      // Find all forms with the same period
+      const overlapping = formsList.filter(f => {
+        if (processed.has(f.id)) return false;
+        if (!f.period_start || !f.period_end) return false;
+        if (f.status === 'cancelled') return false;
+        
+        const fStart = new Date(f.period_start);
+        const fEnd = new Date(f.period_end);
+        
+        return fStart.getTime() === start.getTime() && fEnd.getTime() === end.getTime();
+      });
+      
+      if (overlapping.length > 1) {
+        groups.push({
+          periodStart: form.period_start,
+          periodEnd: form.period_end,
+          forms: overlapping
+        });
+        overlapping.forEach(f => processed.add(f.id));
+      }
+    });
+    
+    return groups;
   };
 
   const checkAffectedForms = (formToDelete) => {
@@ -202,12 +248,48 @@ const FormsList = () => {
       <div className="forms-list-container">
       <div className="forms-header">
         <h2>DA6 Forms</h2>
-        <button 
-          className="btn-primary" 
-          onClick={() => navigate('/forms/new')}
-        >
-          + New Form
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {overlappingGroups.length > 0 && (
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              {overlappingGroups.map((group, idx) => (
+                <button
+                  key={idx}
+                  className="btn-primary"
+                  style={{ backgroundColor: '#28a745', borderColor: '#28a745' }}
+                  onClick={() => {
+                    const periodStart = encodeURIComponent(group.periodStart);
+                    const periodEnd = encodeURIComponent(group.periodEnd);
+                    navigate(`/master-roster/${periodStart}/${periodEnd}`);
+                  }}
+                  title={`View Master Roster for ${group.forms.length} overlapping forms`}
+                >
+                  📋 Master Roster ({group.forms.length} forms)
+                </button>
+              ))}
+            </div>
+          )}
+          {forms.length >= 3 && (
+            <span style={{ 
+              color: '#d32f2f', 
+              fontSize: '14px',
+              fontWeight: '500'
+            }}>
+              Form limit reached (3/3)
+            </span>
+          )}
+          <button 
+            className="btn-primary" 
+            onClick={() => navigate('/forms/new')}
+            disabled={forms.length >= 3}
+            style={forms.length >= 3 ? { 
+              opacity: 0.6, 
+              cursor: 'not-allowed' 
+            } : {}}
+            title={forms.length >= 3 ? 'You have reached the maximum of 3 forms. Please delete an existing form to create a new one.' : ''}
+          >
+            + New Form
+          </button>
+        </div>
       </div>
 
       {forms.length === 0 ? (

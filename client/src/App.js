@@ -8,6 +8,7 @@ import Soldiers from './components/Soldiers';
 import FormsList from './components/FormsList';
 import DA6Form from './components/DA6Form';
 import DA6FormView from './components/DA6FormView';
+import MasterRoster from './components/MasterRoster';
 import Settings from './components/Settings';
 import SetupRequired from './components/SetupRequired';
 import './App.css';
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/forms/new" element={<ProtectedRoute><DA6Form /></ProtectedRoute>} />
       <Route path="/forms/:id/view" element={<ProtectedRoute><DA6FormView /></ProtectedRoute>} />
       <Route path="/forms/:id" element={<ProtectedRoute><DA6Form /></ProtectedRoute>} />
+      <Route path="/master-roster/:periodStart/:periodEnd" element={<ProtectedRoute><MasterRoster /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
