@@ -880,7 +880,8 @@ const DA6Form = () => {
               // Select soldiers for this requirement (respecting days off and appointments)
               let selectedForRequirement = 0;
               for (const soldier of matchingSoldiers) {
-                if (selectedForRequirement >= quantity) break;
+                // Check if we've filled the requirement OR if we've reached the daily limit
+                if (selectedForRequirement >= quantity || selectedForDay.length >= soldiersPerDay) break;
                 
                 // Check if soldier is still in days-off period
                 // First check if they had duty in this period
