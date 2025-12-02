@@ -805,6 +805,41 @@ const DA6Form = () => {
                   continue; // Skip this soldier, they had duty on previous day and should have a day off today
                 }
                 
+                // CRITICAL: Check if assigning duty on this date would conflict with future duty in other forms
+                // If we assign duty today, the soldier gets the next day(s) off
+                // But if they have duty in another form on those days, we can't assign duty today
+                let hasDutyOnDaysOff = false;
+                
+                for (let i = 1; i <= daysOffAfterDuty; i++) {
+                  const nextDate = new Date(current);
+                  nextDate.setDate(nextDate.getDate() + i);
+                  const nextDateStr = nextDate.toISOString().split('T')[0];
+                  
+                  // Check if soldier has a duty appointment (CQ, SD, D) on the next day
+                  const hasDuty = appointments.some(apt => {
+                    const start = new Date(apt.start_date);
+                    const end = new Date(apt.end_date);
+                    const checkDate = new Date(nextDateStr);
+                    
+                    // Check if the next day falls within the appointment range
+                    if (checkDate >= start && checkDate <= end) {
+                      // Check if it's a duty appointment (not a pass)
+                      const dutyCodes = ['CQ', 'SD', 'D'];
+                      return dutyCodes.includes(apt.exception_code);
+                    }
+                    return false;
+                  });
+                  
+                  if (hasDuty) {
+                    hasDutyOnDaysOff = true;
+                    break;
+                  }
+                }
+                
+                if (hasDutyOnDaysOff) {
+                  continue; // Skip this soldier, they have duty on a day-off day, so we can't assign duty today
+                }
+                
                 // Check if soldier has an appointment/unavailability on this date
                 if (isSoldierUnavailableOnDate(soldier.id, current)) {
                   continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
@@ -955,6 +990,41 @@ const DA6Form = () => {
               
               if (hadDutyPreviousDay) {
                 continue; // Skip this soldier, they had duty on previous day and should have a day off today
+              }
+              
+              // CRITICAL: Check if assigning duty on this date would conflict with future duty in other forms
+              // If we assign duty today, the soldier gets the next day(s) off
+              // But if they have duty in another form on those days, we can't assign duty today
+              let hasDutyOnDaysOff = false;
+              
+              for (let i = 1; i <= daysOffAfterDuty; i++) {
+                const nextDate = new Date(current);
+                nextDate.setDate(nextDate.getDate() + i);
+                const nextDateStr = nextDate.toISOString().split('T')[0];
+                
+                // Check if soldier has a duty appointment (CQ, SD, D) on the next day
+                const hasDuty = appointments.some(apt => {
+                  const start = new Date(apt.start_date);
+                  const end = new Date(apt.end_date);
+                  const checkDate = new Date(nextDateStr);
+                  
+                  // Check if the next day falls within the appointment range
+                  if (checkDate >= start && checkDate <= end) {
+                    // Check if it's a duty appointment (not a pass)
+                    const dutyCodes = ['CQ', 'SD', 'D'];
+                    return dutyCodes.includes(apt.exception_code);
+                  }
+                  return false;
+                });
+                
+                if (hasDuty) {
+                  hasDutyOnDaysOff = true;
+                  break;
+                }
+              }
+              
+              if (hasDutyOnDaysOff) {
+                continue; // Skip this soldier, they have duty on a day-off day, so we can't assign duty today
               }
               
               // Check if soldier has an appointment/unavailability on this date

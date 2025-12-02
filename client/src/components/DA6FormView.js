@@ -519,6 +519,39 @@ const DA6FormView = () => {
         }
       }
       
+      // CRITICAL: Check if assigning duty on this date would conflict with future duty in other forms
+      // If we assign duty today, the soldier gets the next day(s) off
+      // But if they have duty in another form on those days, we can't assign duty today
+      const appointments = getAppointmentsForSoldier(soldierId);
+      const currentDate = new Date(dateStr);
+      
+      // Check if soldier has duty on the next day(s) (days-off period) in another form
+      for (let i = 1; i <= daysOffAfterDuty; i++) {
+        const nextDate = new Date(currentDate);
+        nextDate.setDate(nextDate.getDate() + i);
+        const nextDateStr = nextDate.toISOString().split('T')[0];
+        
+        // Check if soldier has a duty appointment (CQ, SD, D) on the next day
+        const hasDutyNextDay = appointments.some(apt => {
+          const start = new Date(apt.start_date);
+          const end = new Date(apt.end_date);
+          const checkDate = new Date(nextDateStr);
+          
+          // Check if the next day falls within the appointment range
+          if (checkDate >= start && checkDate <= end) {
+            // Check if it's a duty appointment (not a pass)
+            const dutyCodes = ['CQ', 'SD', 'D'];
+            return dutyCodes.includes(apt.exception_code);
+          }
+          return false;
+        });
+        
+        if (hasDutyNextDay) {
+          // Soldier has duty on a day-off day, so we can't assign duty today
+          return true;
+        }
+      }
+      
       // CRITICAL: Check if soldier already has a duty assignment in the current form on this date
       // This prevents assigning duty on consecutive days within the same form
       if (assignmentsMap[soldierId] && assignmentsMap[soldierId][dateStr]) {
