@@ -10,6 +10,8 @@ import './Soldiers.css';
 
 const Soldiers = () => {
   const [soldiers, setSoldiers] = useState([]);
+  const [filteredSoldiers, setFilteredSoldiers] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingSoldier, setEditingSoldier] = useState(null);
@@ -37,6 +39,7 @@ const Soldiers = () => {
       const { data } = await apiClient.get('/soldiers');
       const sortedSoldiers = sortSoldiersByRank(data.soldiers || []);
       setSoldiers(sortedSoldiers);
+      setFilteredSoldiers(sortedSoldiers);
     } catch (error) {
       console.error('Error fetching soldiers:', error);
       alert('Error loading soldiers. Please refresh the page.');
@@ -44,6 +47,28 @@ const Soldiers = () => {
       setLoading(false);
     }
   };
+
+  // Filter soldiers based on search query (name or EDIPI)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredSoldiers(soldiers);
+      return;
+    }
+
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = soldiers.filter(soldier => {
+      const fullName = `${soldier.first_name} ${soldier.middle_initial || ''} ${soldier.last_name}`.toLowerCase();
+      const edipi = (soldier.edipi || '').toLowerCase();
+      const rank = (soldier.rank || '').toLowerCase();
+      
+      return fullName.includes(query) || 
+             edipi.includes(query) ||
+             rank.includes(query) ||
+             `${soldier.first_name} ${soldier.last_name}`.toLowerCase().includes(query);
+    });
+    
+    setFilteredSoldiers(filtered);
+  }, [searchQuery, soldiers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -107,6 +132,24 @@ const Soldiers = () => {
       <div className="soldiers-header">
         <h2>Manage Soldiers</h2>
         <div className="header-actions">
+          <div className="search-container">
+            <input
+              type="text"
+              placeholder="Search by name or EDIPI..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            {searchQuery && (
+              <button
+                className="search-clear"
+                onClick={() => setSearchQuery('')}
+                title="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
           {soldiers.length > 0 && (
             <BulkUpdateDays 
               soldiers={soldiers} 
@@ -277,21 +320,37 @@ const Soldiers = () => {
           <div className="empty-state">
             <p>No soldiers added yet. Click "Add Soldier" to get started.</p>
           </div>
+        ) : filteredSoldiers.length === 0 ? (
+          <div className="empty-state">
+            <p>No soldiers found matching "{searchQuery}".</p>
+            <button 
+              className="btn-secondary"
+              onClick={() => setSearchQuery('')}
+            >
+              Clear Search
+            </button>
+          </div>
         ) : (
-          <table className="soldiers-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Rank</th>
-                <th>MOS</th>
-                <th>EDIPI</th>
-                <th>Unit</th>
-                <th>Days Since Last Duty</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {soldiers.map((soldier) => (
+          <>
+            {searchQuery && (
+              <div className="search-results-info">
+                Showing {filteredSoldiers.length} of {soldiers.length} soldier(s)
+              </div>
+            )}
+            <table className="soldiers-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Rank</th>
+                  <th>MOS</th>
+                  <th>EDIPI</th>
+                  <th>Unit</th>
+                  <th>Days Since Last Duty</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredSoldiers.map((soldier) => (
                 <tr key={soldier.id}>
                   <td>
                     {soldier.rank} {soldier.first_name} {soldier.middle_initial} {soldier.last_name}
@@ -328,9 +387,10 @@ const Soldiers = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
       </div>

@@ -17,6 +17,58 @@
   align-items: center;
 }
 
+.search-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-input {
+  padding: 0.75rem 2.5rem 0.75rem 1rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  min-width: 250px;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #1e3c72;
+}
+
+.search-clear {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.search-clear:hover {
+  color: #333;
+}
+
+.search-results-info {
+  padding: 0.75rem 1rem;
+  background: #f0f7ff;
+  border-left: 3px solid #1e3c72;
+  margin-bottom: 1rem;
+  color: #1e3c72;
+  font-size: 0.9rem;
+  border-radius: 4px;
+}
+
 .soldiers-header h2 {
   color: #1e3c72;
   margin: 0;

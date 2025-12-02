@@ -1203,68 +1203,131 @@ const DA6Form = () => {
         exceptionCode = 'SD';
       }
       
-      // Remove existing appointments for this form first (to avoid duplicates on re-save)
-      await removeDutyAppointments(formId, null);
+      // Prepare all appointments we want to create
+      const appointmentsToCreate = [];
       
-      const BATCH_DELAY = 200;
-      const authErrorRef = { value: false };
-      
-      // Create duty appointments
+      // Add duty appointments
       for (const [soldierId, ranges] of Object.entries(soldierDutyRanges)) {
-        if (authErrorRef.value) break;
-        
         for (const range of ranges) {
-          try {
-            await apiClient.post(`/soldiers/${soldierId}/appointments`, {
-              start_date: range.start_date,
-              end_date: range.end_date,
-              reason: `${dutyType} Duty`,
-              exception_code: exceptionCode,
-              notes: `DA6_FORM:${formId}` // Track which form created this appointment
-            });
-          } catch (err) {
-            if (err.response?.status === 401) {
-              authErrorRef.value = true;
-              break;
-            }
-            console.error(`Error creating duty appointment for soldier ${soldierId}:`, err);
-          }
-        }
-        
-        if (!authErrorRef.value) {
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+          appointmentsToCreate.push({
+            soldier_id: soldierId,
+            start_date: range.start_date,
+            end_date: range.end_date,
+            reason: `${dutyType} Duty`,
+            exception_code: exceptionCode,
+            notes: `DA6_FORM:${formId}` // Track which form created this appointment
+          });
         }
       }
       
-      // Create days-off (Pass) appointments
+      // Add days-off (Pass) appointments
       for (const [soldierId, ranges] of Object.entries(soldierDaysOffRanges)) {
-        if (authErrorRef.value) break;
-        
         for (const range of ranges) {
-          try {
-            await apiClient.post(`/soldiers/${soldierId}/appointments`, {
-              start_date: range.start_date,
-              end_date: range.end_date,
-              reason: 'Pass (Days Off After Duty)',
-              exception_code: 'P',
-              notes: `DA6_FORM:${formId}` // Track which form created this appointment
-            });
-          } catch (err) {
-            if (err.response?.status === 401) {
-              authErrorRef.value = true;
-              break;
-            }
-            console.error(`Error creating days-off appointment for soldier ${soldierId}:`, err);
-          }
-        }
-        
-        if (!authErrorRef.value) {
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+          appointmentsToCreate.push({
+            soldier_id: soldierId,
+            start_date: range.start_date,
+            end_date: range.end_date,
+            reason: 'Pass (Days Off After Duty)',
+            exception_code: 'P',
+            notes: `DA6_FORM:${formId}` // Track which form created this appointment
+          });
         }
       }
       
-      if (!authErrorRef.value) {
-        console.log(`Created duty and days-off appointments for ${Object.keys(soldierDutyRanges).length} soldiers from form ${formId}`);
+      // Smart update: Compare existing appointments with new ones
+      // Only delete what's changed and only create what's new
+      let existingAppointments = [];
+      try {
+        const { data } = await apiClient.get(`/appointments/by-form/${formId}`);
+        existingAppointments = data.appointments || [];
+      } catch (err) {
+        if (err.response?.status === 401) {
+          return; // Stop if unauthorized
+        }
+        console.warn('Could not fetch existing appointments, will recreate all:', err);
+        // If we can't fetch existing, fall back to remove-all/recreate-all
+        await removeDutyAppointments(formId, null);
+        existingAppointments = [];
+      }
+      
+      // Create a key for comparing appointments (soldier_id + start_date + end_date + exception_code)
+      const createAppointmentKey = (apt) => {
+        return `${apt.soldier_id}|${apt.start_date}|${apt.end_date}|${apt.exception_code}`;
+      };
+      
+      // Build sets of existing and new appointment keys
+      const existingKeys = new Set(existingAppointments.map(createAppointmentKey));
+      const newKeys = new Set(appointmentsToCreate.map(createAppointmentKey));
+      
+      // Find appointments to delete (exist but not in new set)
+      const appointmentsToDelete = existingAppointments.filter(apt => 
+        !newKeys.has(createAppointmentKey(apt))
+      );
+      
+      // Find appointments to create (in new set but not in existing set)
+      const appointmentsToAdd = appointmentsToCreate.filter(apt => 
+        !existingKeys.has(createAppointmentKey(apt))
+      );
+      
+      // Delete appointments that are no longer needed
+      if (appointmentsToDelete.length > 0) {
+        try {
+          const appointmentIds = appointmentsToDelete.map(apt => apt.id);
+          await apiClient.post('/appointments/bulk-delete', {
+            appointmentIds: appointmentIds
+          });
+          console.log(`Removed ${appointmentIds.length} outdated appointment(s) for form ${formId}`);
+        } catch (err) {
+          if (err.response?.status === 401) {
+            return;
+          }
+          console.error('Error bulk deleting outdated appointments:', err);
+          // Fallback to individual deletes
+          const BATCH_SIZE = 10;
+          for (let i = 0; i < appointmentsToDelete.length; i += BATCH_SIZE) {
+            const batch = appointmentsToDelete.slice(i, i + BATCH_SIZE);
+            await Promise.all(
+              batch.map(apt =>
+                apiClient.delete(`/soldiers/${apt.soldier_id}/appointments/${apt.id}`).catch(err => {
+                  if (err.response?.status === 401) return null;
+                  console.error(`Error deleting appointment ${apt.id}:`, err);
+                  return null;
+                })
+              )
+            );
+          }
+        }
+      }
+      
+      // Create only new appointments
+      if (appointmentsToAdd.length > 0) {
+        try {
+          const { data } = await apiClient.post('/appointments/bulk-create', {
+            appointments: appointmentsToAdd
+          });
+          console.log(`Created ${data.appointments?.length || appointmentsToAdd.length} new appointment(s) for form ${formId}`);
+        } catch (err) {
+          if (err.response?.status === 401) {
+            return; // Stop if unauthorized
+          }
+          console.error('Error bulk creating appointments:', err);
+          // Fallback to individual creates if bulk create fails
+          const BATCH_SIZE = 10;
+          for (let i = 0; i < appointmentsToAdd.length; i += BATCH_SIZE) {
+            const batch = appointmentsToAdd.slice(i, i + BATCH_SIZE);
+            await Promise.all(
+              batch.map(apt =>
+                apiClient.post(`/soldiers/${apt.soldier_id}/appointments`, apt).catch(err => {
+                  if (err.response?.status === 401) return null;
+                  console.error(`Error creating appointment for soldier ${apt.soldier_id}:`, err);
+                  return null;
+                })
+              )
+            );
+          }
+        }
+      } else if (appointmentsToDelete.length === 0) {
+        console.log(`No appointment changes needed for form ${formId}`);
       }
     } catch (error) {
       console.error('Error creating duty and days-off appointments:', error);
@@ -1284,42 +1347,52 @@ const DA6Form = () => {
         cancelledDateObj.setHours(0, 0, 0, 0);
       }
       
-      // Get all appointments for selected soldiers
-      const appointmentsToRemove = [];
-      
-      for (const soldierId of Array.from(selectedSoldiers)) {
-        try {
-          const { data } = await apiClient.get(`/soldiers/${soldierId}/appointments`);
-          const appointments = data.appointments || [];
-          
-          // Find appointments created by this form
-          const formAppointments = appointments.filter(apt => 
-            apt.notes && apt.notes.includes(`DA6_FORM:${formId}`)
-          );
-          
-          for (const apt of formAppointments) {
-            // If cancelledDate is provided, only remove uncompleted appointments
-            // If cancelledDate is null, remove all (for re-saving)
-            if (cancelledDateObj) {
-              const appointmentStart = new Date(apt.start_date);
-              appointmentStart.setHours(0, 0, 0, 0);
-              
-              if (appointmentStart >= cancelledDateObj) {
-                appointmentsToRemove.push({ ...apt, soldierId });
-              } else {
-                // Duty was already completed before cancellation - keep it
-                console.log(`Keeping completed appointment for soldier ${soldierId} on ${apt.start_date} (completed before cancellation)`);
-              }
-            } else {
-              // Remove all appointments for this form (re-saving)
-              appointmentsToRemove.push({ ...apt, soldierId });
+      // Use bulk fetch endpoint to get all appointments for this form at once
+      let allAppointments = [];
+      try {
+        const { data } = await apiClient.get(`/appointments/by-form/${formId}`);
+        allAppointments = data.appointments || [];
+      } catch (err) {
+        if (err.response?.status === 401) {
+          return; // Stop if unauthorized
+        }
+        console.error('Error fetching appointments by form:', err);
+        // Fallback to old method if bulk endpoint fails
+        const appointmentsToRemove = [];
+        for (const soldierId of Array.from(selectedSoldiers)) {
+          try {
+            const { data: soldierData } = await apiClient.get(`/soldiers/${soldierId}/appointments`);
+            const appointments = soldierData.appointments || [];
+            const formAppointments = appointments.filter(apt => 
+              apt.notes && apt.notes.includes(`DA6_FORM:${formId}`)
+            );
+            appointmentsToRemove.push(...formAppointments);
+          } catch (soldierErr) {
+            if (soldierErr.response?.status === 401) {
+              return;
             }
+            console.error(`Error fetching appointments for soldier ${soldierId}:`, soldierErr);
           }
-        } catch (err) {
-          if (err.response?.status === 401) {
-            return; // Stop if unauthorized
+        }
+        allAppointments = appointmentsToRemove;
+      }
+      
+      // Filter appointments based on cancellation date
+      const appointmentsToRemove = [];
+      for (const apt of allAppointments) {
+        if (cancelledDateObj) {
+          const appointmentStart = new Date(apt.start_date);
+          appointmentStart.setHours(0, 0, 0, 0);
+          
+          if (appointmentStart >= cancelledDateObj) {
+            appointmentsToRemove.push(apt.id);
+          } else {
+            // Duty was already completed before cancellation - keep it
+            console.log(`Keeping completed appointment ${apt.id} on ${apt.start_date} (completed before cancellation)`);
           }
-          console.error(`Error fetching appointments for soldier ${soldierId}:`, err);
+        } else {
+          // Remove all appointments for this form (re-saving)
+          appointmentsToRemove.push(apt.id);
         }
       }
       
@@ -1327,35 +1400,34 @@ const DA6Form = () => {
         return;
       }
       
-      // Delete appointments in batches
-      const BATCH_SIZE = 5;
-      const BATCH_DELAY = 200;
-      const authErrorRef = { value: false };
-      
-      for (let i = 0; i < appointmentsToRemove.length; i += BATCH_SIZE) {
-        if (authErrorRef.value) break;
-        
-        const batch = appointmentsToRemove.slice(i, i + BATCH_SIZE);
-        const batchPromises = batch.map(apt =>
-          apiClient.delete(`/soldiers/${apt.soldierId}/appointments/${apt.id}`).catch(err => {
-            if (err.response?.status === 401) {
-              authErrorRef.value = true;
-              return null;
-            }
-            console.error(`Error deleting appointment ${apt.id}:`, err);
-            return null;
-          })
-        );
-        
-        await Promise.all(batchPromises);
-        
-        if (i + BATCH_SIZE < appointmentsToRemove.length && !authErrorRef.value) {
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-        }
-      }
-      
-      if (!authErrorRef.value) {
+      // Use bulk delete endpoint for faster deletion
+      try {
+        await apiClient.post('/appointments/bulk-delete', {
+          appointmentIds: appointmentsToRemove
+        });
         console.log(`Removed ${appointmentsToRemove.length} appointment(s) for form ${formId}`);
+      } catch (err) {
+        if (err.response?.status === 401) {
+          return;
+        }
+        console.error('Error bulk deleting appointments:', err);
+        // Fallback to individual deletes if bulk delete fails
+        const BATCH_SIZE = 10;
+        for (let i = 0; i < appointmentsToRemove.length; i += BATCH_SIZE) {
+          const batch = appointmentsToRemove.slice(i, i + BATCH_SIZE);
+          await Promise.all(
+            batch.map(aptId => {
+              // Find the appointment to get soldierId for the delete endpoint
+              const apt = allAppointments.find(a => a.id === aptId);
+              if (!apt) return Promise.resolve();
+              return apiClient.delete(`/soldiers/${apt.soldier_id}/appointments/${aptId}`).catch(err => {
+                if (err.response?.status === 401) return null;
+                console.error(`Error deleting appointment ${aptId}:`, err);
+                return null;
+              });
+            })
+          );
+        }
       }
     } catch (error) {
       console.error('Error removing appointments:', error);

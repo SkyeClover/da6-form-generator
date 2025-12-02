@@ -46,3 +46,12 @@ DEPLOYMENT_CHECKLIST.md
 FINDING_SUPABASE_CREDENTIALS.md
 SUPABASE_SETUP.md
 VERCEL_DEPLOYMENT.md
+
+# Internal/development database scripts (not needed in production)
+database/nuke_and_reseed.sql
+database/reset_days_since_last_duty.sql
+database/seed_data_comprehensive.sql
+database/seed_data.sql
+
+# Setup scripts (internal use)
+setup-supabase.sh

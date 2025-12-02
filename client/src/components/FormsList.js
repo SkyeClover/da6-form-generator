@@ -108,32 +108,39 @@ const FormsList = () => {
     try {
       // Before deleting, remove duty appointments created by this form
       // This ensures soldier profiles are cleaned up
-      if (formToDelete.form_data?.selected_soldiers) {
-        try {
-          // Remove appointments for all soldiers in this form
-          const selectedSoldiers = formToDelete.form_data.selected_soldiers || [];
-          for (const soldierId of selectedSoldiers) {
-            try {
-              const { data } = await apiClient.get(`/soldiers/${soldierId}/appointments`);
-              const appointments = data.appointments || [];
-              
-              // Find and delete appointments created by this form
-              const formAppointments = appointments.filter(apt => 
-                apt.notes && apt.notes.includes(`DA6_FORM:${id}`)
+      // Use bulk fetch endpoint for faster retrieval
+      try {
+        const { data } = await apiClient.get(`/appointments/by-form/${id}`);
+        const appointments = data.appointments || [];
+        
+        if (appointments.length > 0) {
+          // Use bulk delete endpoint for faster deletion
+          const appointmentIds = appointments.map(apt => apt.id);
+          try {
+            await apiClient.post('/appointments/bulk-delete', {
+              appointmentIds: appointmentIds
+            });
+            console.log(`Removed ${appointmentIds.length} appointment(s) before deleting form ${id}`);
+          } catch (bulkErr) {
+            // Fallback to individual deletes if bulk delete fails
+            console.warn('Bulk delete failed, falling back to individual deletes:', bulkErr);
+            const BATCH_SIZE = 10;
+            for (let i = 0; i < appointments.length; i += BATCH_SIZE) {
+              const batch = appointments.slice(i, i + BATCH_SIZE);
+              await Promise.all(
+                batch.map(apt =>
+                  apiClient.delete(`/soldiers/${apt.soldier_id}/appointments/${apt.id}`).catch(err => {
+                    console.error(`Error deleting appointment ${apt.id}:`, err);
+                    return null;
+                  })
+                )
               );
-              
-              for (const apt of formAppointments) {
-                await apiClient.delete(`/soldiers/${soldierId}/appointments/${apt.id}`);
-              }
-            } catch (err) {
-              // Continue even if one soldier's appointments fail to delete
-              console.error(`Error removing appointments for soldier ${soldierId}:`, err);
             }
           }
-        } catch (err) {
-          console.error('Error removing appointments before form deletion:', err);
-          // Continue with deletion even if appointment cleanup fails
         }
+      } catch (err) {
+        console.error('Error removing appointments before form deletion:', err);
+        // Continue with deletion even if appointment cleanup fails
       }
       
       await apiClient.delete(`/da6-forms/${id}`);

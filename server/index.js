@@ -376,6 +376,113 @@ app.delete('/api/soldiers/:id/appointments/:appointmentId', verifyAuth, async (r
   }
 });
 
+// Bulk Appointments routes (for performance optimization)
+// Get all appointments for a specific form
+app.get('/api/appointments/by-form/:formId', verifyAuth, async (req, res) => {
+  try {
+    // Verify form belongs to user
+    const { data: form, error: formError } = await supabase
+      .from('da6_forms')
+      .select('id')
+      .eq('id', req.params.formId)
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (formError || !form) {
+      return res.status(404).json({ error: 'Form not found' });
+    }
+
+    // Get all appointments with notes containing the form ID
+    const { data, error } = await supabase
+      .from('soldier_appointments')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .like('notes', `%DA6_FORM:${req.params.formId}%`)
+      .order('start_date', { ascending: true });
+
+    if (error) throw error;
+    res.json({ appointments: data || [] });
+  } catch (error) {
+    console.error('Error fetching appointments by form:', error);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
+});
+
+// Bulk delete appointments
+app.post('/api/appointments/bulk-delete', verifyAuth, async (req, res) => {
+  try {
+    const { appointmentIds } = req.body;
+    
+    if (!Array.isArray(appointmentIds) || appointmentIds.length === 0) {
+      return res.status(400).json({ error: 'appointmentIds must be a non-empty array' });
+    }
+
+    // Verify all appointments belong to user and delete them
+    const { error } = await supabase
+      .from('soldier_appointments')
+      .delete()
+      .in('id', appointmentIds)
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+    res.json({ message: `Successfully deleted ${appointmentIds.length} appointment(s)` });
+  } catch (error) {
+    console.error('Error bulk deleting appointments:', error);
+    res.status(500).json({ error: 'Failed to delete appointments' });
+  }
+});
+
+// Bulk create appointments
+app.post('/api/appointments/bulk-create', verifyAuth, async (req, res) => {
+  try {
+    const { appointments } = req.body;
+    
+    if (!Array.isArray(appointments) || appointments.length === 0) {
+      return res.status(400).json({ error: 'appointments must be a non-empty array' });
+    }
+
+    // Verify all soldier_ids belong to user
+    const soldierIds = [...new Set(appointments.map(apt => apt.soldier_id))];
+    const { data: soldiers, error: soldiersError } = await supabase
+      .from('soldiers')
+      .select('id')
+      .in('id', soldierIds)
+      .eq('user_id', req.user.id);
+
+    if (soldiersError) throw soldiersError;
+    
+    const validSoldierIds = new Set(soldiers.map(s => s.id));
+    const invalidAppointments = appointments.filter(apt => !validSoldierIds.has(apt.soldier_id));
+    
+    if (invalidAppointments.length > 0) {
+      return res.status(400).json({ 
+        error: 'Some appointments reference soldiers that do not belong to you' 
+      });
+    }
+
+    // Add user_id to all appointments
+    const appointmentsWithUserId = appointments.map(apt => ({
+      ...apt,
+      user_id: req.user.id
+    }));
+
+    // Insert all appointments
+    const { data, error } = await supabase
+      .from('soldier_appointments')
+      .insert(appointmentsWithUserId)
+      .select();
+
+    if (error) throw error;
+    res.status(201).json({ 
+      appointments: data || [],
+      message: `Successfully created ${data.length} appointment(s)` 
+    });
+  } catch (error) {
+    console.error('Error bulk creating appointments:', error);
+    res.status(500).json({ error: 'Failed to create appointments' });
+  }
+});
+
 // Holidays routes
 app.get('/api/holidays', verifyAuth, async (req, res) => {
   try {
