@@ -9,12 +9,23 @@ const supabase = require('./config/supabase');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Admin email that bypasses limits
+// Admin email and UID that bypasses limits
 const ADMIN_EMAIL = 'jacobwalker852@gmail.com';
+const ADMIN_UID = 'a7acf98d-04bc-47f2-bf0d-8d061a2dc67e';
 
 // Helper function to check if user should have limits applied
-const shouldApplyLimits = (userEmail) => {
-  return userEmail !== ADMIN_EMAIL;
+const shouldApplyLimits = (userEmail, userId) => {
+  // Check by user ID first (most reliable)
+  if (userId === ADMIN_UID) {
+    return false; // Admin, no limits
+  }
+  
+  // Check by email (case-insensitive)
+  if (userEmail && userEmail.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase().trim()) {
+    return false; // Admin, no limits
+  }
+  
+  return true; // Apply limits
 };
 
 // Middleware
@@ -111,7 +122,7 @@ app.get('/api/da6-forms/:id', verifyAuth, async (req, res) => {
 app.post('/api/da6-forms', verifyAuth, async (req, res) => {
   try {
     // Check form limit for non-admin users
-    if (shouldApplyLimits(req.user.email)) {
+    if (shouldApplyLimits(req.user.email, req.user.id)) {
       const { count, error: countError } = await supabase
         .from('da6_forms')
         .select('*', { count: 'exact', head: true })
@@ -222,7 +233,7 @@ app.get('/api/soldiers', verifyAuth, async (req, res) => {
 app.post('/api/soldiers', verifyAuth, async (req, res) => {
   try {
     // Check soldier limit for non-admin users
-    if (shouldApplyLimits(req.user.email)) {
+    if (shouldApplyLimits(req.user.email, req.user.id)) {
       const { count, error: countError } = await supabase
         .from('soldiers')
         .select('*', { count: 'exact', head: true })
