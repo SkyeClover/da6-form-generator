@@ -8,6 +8,7 @@ import './FormsList.css';
 const FormsList = () => {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deletingFormId, setDeletingFormId] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -102,6 +103,8 @@ const FormsList = () => {
     
     if (!window.confirm(confirmMessage)) return;
     
+    setDeletingFormId(id);
+    
     try {
       // Before deleting, remove duty appointments created by this form
       // This ensures soldier profiles are cleaned up
@@ -149,6 +152,8 @@ const FormsList = () => {
     } catch (error) {
       console.error('Error deleting form:', error);
       alert('Error deleting form. Please try again.');
+    } finally {
+      setDeletingFormId(null);
     }
   };
 
@@ -172,6 +177,17 @@ const FormsList = () => {
 
   if (loading) {
     return <LoadingScreen message="Loading forms..." />;
+  }
+
+  if (deletingFormId) {
+    const formBeingDeleted = forms.find(f => f.id === deletingFormId);
+    const formName = formBeingDeleted?.unit_name || 'form';
+    return (
+      <LoadingScreen 
+        message={`Deleting ${formName}...`}
+        subMessage="Removing duty appointments and cleaning up data. This may take a moment."
+      />
+    );
   }
 
   return (
