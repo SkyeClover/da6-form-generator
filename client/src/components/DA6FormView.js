@@ -486,12 +486,13 @@ const DA6FormView = () => {
         return true;
       }
       
+      // Get appointments once for all checks
+      const appointments = getAppointmentsForSoldier(soldierId);
+      const currentDate = new Date(dateStr);
+      
       // CRITICAL: Check if soldier had duty in another form on the previous day(s)
       // If they had duty yesterday, they should have a day off today (P exception)
       // This prevents assigning duty when they should be on pass after duty from another form
-      const currentDate = new Date(dateStr);
-      const appointments = getAppointmentsForSoldier(soldierId);
-      
       // Check if soldier had duty on previous day(s) that would give them a day off today
       for (let i = 1; i <= daysOffAfterDuty; i++) {
         const previousDate = new Date(currentDate);
@@ -522,8 +523,6 @@ const DA6FormView = () => {
       // CRITICAL: Check if assigning duty on this date would conflict with future duty in other forms
       // If we assign duty today, the soldier gets the next day(s) off
       // But if they have duty in another form on those days, we can't assign duty today
-      const appointments = getAppointmentsForSoldier(soldierId);
-      const currentDate = new Date(dateStr);
       
       // Check if soldier has duty on the next day(s) (days-off period) in another form
       for (let i = 1; i <= daysOffAfterDuty; i++) {
