@@ -1265,6 +1265,29 @@ const DA6FormView = () => {
       return;
     }
     
+    // Build assignments map from stored assignments (source of truth)
+    const buildAssignmentsMapFromStored = () => {
+      if (!form?.form_data?.assignments) return {};
+      
+      const map = {};
+      const storedAssignments = form.form_data.assignments || [];
+      
+      storedAssignments.forEach(assignment => {
+        if (!assignment.soldier_id || !assignment.date) return;
+        
+        if (!map[assignment.soldier_id]) {
+          map[assignment.soldier_id] = {};
+        }
+        
+        map[assignment.soldier_id][assignment.date] = {
+          duty: assignment.duty || false,
+          exception_code: assignment.exception_code || null
+        };
+      });
+      
+      return map;
+    };
+    
     // First try to use stored assignments (source of truth)
     const storedMap = buildAssignmentsMapFromStored();
     
@@ -1283,6 +1306,7 @@ const DA6FormView = () => {
     } else {
       setAssignmentsMap({});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form?.id, form?.updated_at, form?.created_at, form?.form_data?.assignments?.length, soldiers.length]);
 
   // Helper function to generate assignments for another form (for cross-roster checking)
