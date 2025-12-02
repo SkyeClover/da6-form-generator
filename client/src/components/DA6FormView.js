@@ -481,14 +481,53 @@ const DA6FormView = () => {
         return true;
       }
       
-      // Check appointments (this includes duty appointments and pass appointments from other forms)
-      if (isSoldierUnavailableOnDate(soldierId, new Date(dateStr))) {
-        return true;
-      }
-      
       // Get appointments once for all checks
       const appointments = getAppointmentsForSoldier(soldierId);
       const currentDate = new Date(dateStr);
+      
+      // Check if soldier has ANY appointment on this date (duty or pass)
+      // This includes checking for duty appointments (CQ, SD, D) and pass appointments (P)
+      const hasAppointmentToday = appointments.some(apt => {
+        const start = new Date(apt.start_date);
+        const end = new Date(apt.end_date);
+        const checkDate = new Date(currentDate);
+        return checkDate >= start && checkDate <= end;
+      });
+      
+      if (hasAppointmentToday) {
+        // Check if it's a pass (P) appointment - if so, they had duty yesterday and should be off today
+        const hasPassToday = appointments.some(apt => {
+          const start = new Date(apt.start_date);
+          const end = new Date(apt.end_date);
+          const checkDate = new Date(currentDate);
+          if (checkDate >= start && checkDate <= end) {
+            return apt.exception_code === 'P';
+          }
+          return false;
+        });
+        
+        if (hasPassToday) {
+          // Soldier has a pass today, meaning they had duty yesterday - they're unavailable
+          return true;
+        }
+        
+        // Check if it's a duty appointment (CQ, SD, D) - they're unavailable
+        const hasDutyToday = appointments.some(apt => {
+          const start = new Date(apt.start_date);
+          const end = new Date(apt.end_date);
+          const checkDate = new Date(currentDate);
+          if (checkDate >= start && checkDate <= end) {
+            const dutyCodes = ['CQ', 'SD', 'D'];
+            return dutyCodes.includes(apt.exception_code);
+          }
+          return false;
+        });
+        
+        if (hasDutyToday) {
+          // Soldier has duty today - they're unavailable
+          return true;
+        }
+      }
       
       // CRITICAL: Check if soldier had duty in another form on the previous day(s)
       // If they had duty yesterday, they should have a day off today (P exception)

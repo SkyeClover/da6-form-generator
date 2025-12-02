@@ -769,10 +769,55 @@ const DA6Form = () => {
                   continue; // Skip this soldier, they have a pass on this date (days off after duty)
                 }
                 
+                // Get appointments once for all checks
+                const appointments = getAppointmentsForSoldier(soldier.id);
+                const dateStr = current.toISOString().split('T')[0];
+                
+                // CRITICAL: Check if soldier has ANY appointment on this date (duty or pass)
+                // This includes checking for duty appointments (CQ, SD, D) and pass appointments (P)
+                const hasAppointmentToday = appointments.some(apt => {
+                  const start = new Date(apt.start_date);
+                  const end = new Date(apt.end_date);
+                  const checkDate = new Date(current);
+                  return checkDate >= start && checkDate <= end;
+                });
+                
+                if (hasAppointmentToday) {
+                  // Check if it's a pass (P) appointment - if so, they had duty yesterday and should be off today
+                  const hasPassToday = appointments.some(apt => {
+                    const start = new Date(apt.start_date);
+                    const end = new Date(apt.end_date);
+                    const checkDate = new Date(current);
+                    if (checkDate >= start && checkDate <= end) {
+                      return apt.exception_code === 'P';
+                    }
+                    return false;
+                  });
+                  
+                  if (hasPassToday) {
+                    continue; // Skip this soldier, they have a pass today (days off after duty)
+                  }
+                  
+                  // Check if it's a duty appointment (CQ, SD, D) - they're unavailable
+                  const hasDutyToday = appointments.some(apt => {
+                    const start = new Date(apt.start_date);
+                    const end = new Date(apt.end_date);
+                    const checkDate = new Date(current);
+                    if (checkDate >= start && checkDate <= end) {
+                      const dutyCodes = ['CQ', 'SD', 'D'];
+                      return dutyCodes.includes(apt.exception_code);
+                    }
+                    return false;
+                  });
+                  
+                  if (hasDutyToday) {
+                    continue; // Skip this soldier, they have duty today
+                  }
+                }
+                
                 // CRITICAL: Check if soldier had duty in another form on the previous day(s)
                 // If they had duty yesterday, they should have a day off today (P exception)
                 // This prevents assigning duty when they should be on pass after duty from another form
-                const appointments = getAppointmentsForSoldier(soldier.id);
                 let hadDutyPreviousDay = false;
                 
                 for (let i = 1; i <= daysOffAfterDuty; i++) {
@@ -838,11 +883,6 @@ const DA6Form = () => {
                 
                 if (hasDutyOnDaysOff) {
                   continue; // Skip this soldier, they have duty on a day-off day, so we can't assign duty today
-                }
-                
-                // Check if soldier has an appointment/unavailability on this date
-                if (isSoldierUnavailableOnDate(soldier.id, current)) {
-                  continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
                 }
                 
                 selectedForDay.push(soldier.id);
@@ -956,10 +996,54 @@ const DA6Form = () => {
                 continue; // Skip this soldier, they have a pass on this date (days off after duty)
               }
               
+              // Get appointments once for all checks
+              const appointments = getAppointmentsForSoldier(soldier.id);
+              
+              // CRITICAL: Check if soldier has ANY appointment on this date (duty or pass)
+              // This includes checking for duty appointments (CQ, SD, D) and pass appointments (P)
+              const hasAppointmentToday = appointments.some(apt => {
+                const start = new Date(apt.start_date);
+                const end = new Date(apt.end_date);
+                const checkDate = new Date(current);
+                return checkDate >= start && checkDate <= end;
+              });
+              
+              if (hasAppointmentToday) {
+                // Check if it's a pass (P) appointment - if so, they had duty yesterday and should be off today
+                const hasPassToday = appointments.some(apt => {
+                  const start = new Date(apt.start_date);
+                  const end = new Date(apt.end_date);
+                  const checkDate = new Date(current);
+                  if (checkDate >= start && checkDate <= end) {
+                    return apt.exception_code === 'P';
+                  }
+                  return false;
+                });
+                
+                if (hasPassToday) {
+                  continue; // Skip this soldier, they have a pass today (days off after duty)
+                }
+                
+                // Check if it's a duty appointment (CQ, SD, D) - they're unavailable
+                const hasDutyToday = appointments.some(apt => {
+                  const start = new Date(apt.start_date);
+                  const end = new Date(apt.end_date);
+                  const checkDate = new Date(current);
+                  if (checkDate >= start && checkDate <= end) {
+                    const dutyCodes = ['CQ', 'SD', 'D'];
+                    return dutyCodes.includes(apt.exception_code);
+                  }
+                  return false;
+                });
+                
+                if (hasDutyToday) {
+                  continue; // Skip this soldier, they have duty today
+                }
+              }
+              
               // CRITICAL: Check if soldier had duty in another form on the previous day(s)
               // If they had duty yesterday, they should have a day off today (P exception)
               // This prevents assigning duty when they should be on pass after duty from another form
-              const appointments = getAppointmentsForSoldier(soldier.id);
               let hadDutyPreviousDay = false;
               
               for (let i = 1; i <= daysOffAfterDuty; i++) {
@@ -1025,11 +1109,6 @@ const DA6Form = () => {
               
               if (hasDutyOnDaysOff) {
                 continue; // Skip this soldier, they have duty on a day-off day, so we can't assign duty today
-              }
-              
-              // Check if soldier has an appointment/unavailability on this date
-              if (isSoldierUnavailableOnDate(soldier.id, current)) {
-                continue; // Skip this soldier, they have an appointment (already handled in appointmentExceptions)
               }
               
               selectedForDay.push(soldier.id);
