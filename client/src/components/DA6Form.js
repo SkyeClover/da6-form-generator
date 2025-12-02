@@ -853,6 +853,7 @@ const DA6Form = () => {
                 // If we assign duty today, the soldier gets the next day(s) off
                 // But if they have duty in another form on those days, we can't assign duty today
                 let hasDutyOnDaysOff = false;
+                let conflictDate = null;
                 
                 for (let i = 1; i <= daysOffAfterDuty; i++) {
                   const nextDate = new Date(current);
@@ -860,7 +861,7 @@ const DA6Form = () => {
                   const nextDateStr = nextDate.toISOString().split('T')[0];
                   
                   // Check if soldier has a duty appointment (CQ, SD, D) on the next day
-                  const hasDuty = appointments.some(apt => {
+                  const conflictingAppointment = appointments.find(apt => {
                     const start = new Date(apt.start_date);
                     const end = new Date(apt.end_date);
                     const checkDate = new Date(nextDateStr);
@@ -874,8 +875,10 @@ const DA6Form = () => {
                     return false;
                   });
                   
-                  if (hasDuty) {
+                  if (conflictingAppointment) {
                     hasDutyOnDaysOff = true;
+                    conflictDate = nextDateStr;
+                    console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
                     break;
                   }
                 }
@@ -1079,6 +1082,7 @@ const DA6Form = () => {
               // If we assign duty today, the soldier gets the next day(s) off
               // But if they have duty in another form on those days, we can't assign duty today
               let hasDutyOnDaysOff = false;
+              let conflictDate = null;
               
               for (let i = 1; i <= daysOffAfterDuty; i++) {
                 const nextDate = new Date(current);
@@ -1086,7 +1090,7 @@ const DA6Form = () => {
                 const nextDateStr = nextDate.toISOString().split('T')[0];
                 
                 // Check if soldier has a duty appointment (CQ, SD, D) on the next day
-                const hasDuty = appointments.some(apt => {
+                const conflictingAppointment = appointments.find(apt => {
                   const start = new Date(apt.start_date);
                   const end = new Date(apt.end_date);
                   const checkDate = new Date(nextDateStr);
@@ -1100,8 +1104,10 @@ const DA6Form = () => {
                   return false;
                 });
                 
-                if (hasDuty) {
+                if (conflictingAppointment) {
                   hasDutyOnDaysOff = true;
+                  conflictDate = nextDateStr;
+                  console.log(`[Assignment Gen] Skipping ${soldier.rank} ${soldier.last_name} on ${dateStr} - they have ${conflictingAppointment.exception_code} duty on ${nextDateStr} (day off day)`);
                   break;
                 }
               }
