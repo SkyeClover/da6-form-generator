@@ -304,9 +304,26 @@ const DA6Form = () => {
     try {
       const { data } = await apiClient.get('/da6-forms');
       // Exclude current form if editing
-      const otherForms = id 
+      let otherForms = id 
         ? (data.forms || []).filter(f => f.id !== id)
         : (data.forms || []);
+      
+      // Filter out draft forms and test forms (forms with "test" in the name, case-insensitive)
+      // This prevents "ghost" rosters from appearing
+      otherForms = otherForms.filter(f => {
+        // Exclude draft forms
+        if (f.status === 'draft') return false;
+        
+        // Exclude test forms (forms with "test" in unit_name, case-insensitive)
+        const unitName = (f.unit_name || '').toLowerCase();
+        if (unitName.includes('test')) {
+          console.log(`[Cross-Roster] Excluding test form: ${f.id} (${f.unit_name})`);
+          return false;
+        }
+        
+        return true;
+      });
+      
       setOtherForms(otherForms);
       
       // Automatically enable cross-roster checking and select all other forms
@@ -319,11 +336,22 @@ const DA6Form = () => {
         
         // Only auto-select all if none are currently selected
         // Only auto-select 'in_progress' and 'complete' forms for conflict checking
+        // Exclude test forms (forms with "test" in unit_name, case-insensitive) to prevent "ghost" rosters
         setSelectedRostersForCheck(prev => {
           if (prev.size === 0 && otherForms.length > 0) {
-            const activeForms = otherForms.filter(f => 
-              f.status === 'in_progress' || f.status === 'complete'
-            );
+            const activeForms = otherForms.filter(f => {
+              // Only include in_progress or complete forms
+              if (f.status !== 'in_progress' && f.status !== 'complete') return false;
+              
+              // Exclude test forms (forms with "test" in unit_name, case-insensitive)
+              const unitName = (f.unit_name || '').toLowerCase();
+              if (unitName.includes('test')) {
+                console.log(`[Auto Cross-Roster] Excluding test form from auto-selection: ${f.id} (${f.unit_name})`);
+                return false;
+              }
+              
+              return true;
+            });
             const newSet = new Set(activeForms.map(f => f.id));
             console.log(`[Auto Cross-Roster] Auto-selected ${newSet.size} active roster(s) for cross-checking`);
             return newSet;

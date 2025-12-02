@@ -25,7 +25,12 @@ const DA6FormView = () => {
   useEffect(() => {
     // Fetch other forms if cross-roster checking was enabled
     if (form?.form_data?.cross_roster_check_enabled && form?.form_data?.selected_rosters_for_check) {
-      fetchOtherForms(form.form_data.selected_rosters_for_check);
+      // Filter out test forms from saved selections to prevent "ghost" rosters
+      const selectedFormIds = form.form_data.selected_rosters_for_check.filter(formId => {
+        // We'll filter after fetching, but log here if needed
+        return true;
+      });
+      fetchOtherForms(selectedFormIds);
     }
   }, [form]);
 
@@ -281,7 +286,22 @@ const DA6FormView = () => {
         apiClient.get(`/da6-forms/${formId}`).then(res => res.data.form)
       );
       const fetchedForms = await Promise.all(formsPromises);
-      setOtherForms(fetchedForms);
+      
+      // Filter out test forms to prevent "ghost" rosters
+      const filteredForms = fetchedForms.filter(f => {
+        const unitName = (f.unit_name || '').toLowerCase();
+        if (unitName.includes('test')) {
+          console.log(`[Cross-Roster View] Excluding test form: ${f.id} (${f.unit_name})`);
+          return false;
+        }
+        return true;
+      });
+      
+      if (filteredForms.length < fetchedForms.length) {
+        console.log(`[Cross-Roster View] Filtered out ${fetchedForms.length - filteredForms.length} test form(s) from cross-roster checking`);
+      }
+      
+      setOtherForms(filteredForms);
     } catch (error) {
       console.error('Error fetching other forms for cross-roster checking:', error);
       setOtherForms([]);
