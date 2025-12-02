@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../utils/api';
 import { sortSoldiersByRank } from '../utils/rankOrder';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/adminCheck';
 import Layout from './Layout';
 import BulkUpdateDays from './BulkUpdateDays';
 import SoldierProfile from './SoldierProfile';
@@ -16,6 +18,8 @@ const Soldiers = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingSoldier, setEditingSoldier] = useState(null);
   const [selectedProfileSoldier, setSelectedProfileSoldier] = useState(null);
+  const { user } = useAuth();
+  const userIsAdmin = isAdmin(user);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -162,7 +166,7 @@ const Soldiers = () => {
               onUpdate={fetchSoldiers}
             />
           )}
-          {soldiers.length >= 10 && (
+          {!userIsAdmin && soldiers.length >= 10 && (
             <span style={{ 
               color: '#d32f2f', 
               fontSize: '14px',
@@ -190,12 +194,12 @@ const Soldiers = () => {
                 days_since_last_duty: 0
               });
             }}
-            disabled={soldiers.length >= 10}
-            style={soldiers.length >= 10 ? { 
+            disabled={!userIsAdmin && soldiers.length >= 10}
+            style={!userIsAdmin && soldiers.length >= 10 ? { 
               opacity: 0.6, 
               cursor: 'not-allowed' 
             } : {}}
-            title={soldiers.length >= 10 ? 'You have reached the maximum of 10 soldiers. Please delete an existing soldier to add a new one.' : ''}
+            title={!userIsAdmin && soldiers.length >= 10 ? 'You have reached the maximum of 10 soldiers. Please delete an existing soldier to add a new one.' : ''}
           >
             + Add Soldier
           </button>

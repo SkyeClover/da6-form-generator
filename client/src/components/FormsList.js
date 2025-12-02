@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
+import { isAdmin } from '../utils/adminCheck';
 import Layout from './Layout';
 import LoadingScreen from './LoadingScreen';
 import './FormsList.css';
@@ -11,6 +13,8 @@ const FormsList = () => {
   const [deletingFormId, setDeletingFormId] = useState(null);
   const [overlappingGroups, setOverlappingGroups] = useState([]); // Groups of forms with the same period
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userIsAdmin = isAdmin(user);
 
   useEffect(() => {
     fetchForms();
@@ -268,7 +272,7 @@ const FormsList = () => {
               ))}
             </div>
           )}
-          {forms.length >= 3 && (
+          {!userIsAdmin && forms.length >= 3 && (
             <span style={{ 
               color: '#d32f2f', 
               fontSize: '14px',
@@ -280,12 +284,12 @@ const FormsList = () => {
           <button 
             className="btn-primary" 
             onClick={() => navigate('/forms/new')}
-            disabled={forms.length >= 3}
-            style={forms.length >= 3 ? { 
+            disabled={!userIsAdmin && forms.length >= 3}
+            style={!userIsAdmin && forms.length >= 3 ? { 
               opacity: 0.6, 
               cursor: 'not-allowed' 
             } : {}}
-            title={forms.length >= 3 ? 'You have reached the maximum of 3 forms. Please delete an existing form to create a new one.' : ''}
+            title={!userIsAdmin && forms.length >= 3 ? 'You have reached the maximum of 3 forms. Please delete an existing form to create a new one.' : ''}
           >
             + New Form
           </button>
