@@ -2563,7 +2563,18 @@ const DA6Form = () => {
         else if (today >= periodStart && today <= periodEnd) {
           finalStatus = 'in_progress';
         }
-        // Otherwise keep as draft
+        // If period is in the future, set to in_progress for new forms being submitted
+        // (This allows users to create forms for future periods and have them ready)
+        else if (today < periodStart) {
+          // For new forms being submitted, default to in_progress so they're active
+          // For existing forms, keep their current status if it's already set
+          if (!id || formData.status === 'draft') {
+            finalStatus = 'in_progress';
+          } else {
+            finalStatus = formData.status;
+          }
+        }
+        // Otherwise keep as draft (shouldn't normally reach here)
         else {
           finalStatus = 'draft';
         }
@@ -2630,6 +2641,19 @@ const DA6Form = () => {
         // Single-form generation (no overlapping forms)
         const crossRosterDataForGeneration = otherFormAssignmentsRef.current[crossRosterKey] || null;
         assignments = generateAssignments(crossRosterDataForGeneration);
+      }
+      
+      // Validate that assignments were generated
+      if (!assignments || assignments.length === 0) {
+        if (selectedSoldiers.size === 0) {
+          alert('Please select at least one soldier before submitting the form.');
+        } else if (!formData.period_start || !formData.period_end) {
+          alert('Please set the period start and end dates before submitting the form.');
+        } else {
+          alert('No assignments were generated. Please check your form configuration and try again.');
+        }
+        setSaving(false);
+        return;
       }
       
       const payload = {
