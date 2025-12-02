@@ -1842,7 +1842,7 @@ const DA6Form = () => {
         } else {
           setSaving(false);
           alert('Form saved successfully! Duty appointments have been updated in soldier profiles.');
-          navigate('/forms');
+          navigate(`/forms/${id}/view`);
         }
       } else {
         const { data } = await apiClient.post('/da6-forms', payload);
@@ -1862,7 +1862,7 @@ const DA6Form = () => {
           navigate('/forms');
         } else {
           setSaving(false);
-          navigate(`/forms/${newFormId}`);
+          navigate(`/forms/${newFormId}/view`);
         }
       }
     } catch (error) {
