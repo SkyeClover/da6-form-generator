@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import DevelopmentBanner from './DevelopmentBanner';
 import './Layout.css';
 
 const Layout = ({ children }) => {
@@ -20,6 +21,7 @@ const Layout = ({ children }) => {
 
   return (
     <div className="layout">
+      <DevelopmentBanner />
       <header className="layout-header">
         <div className="header-content">
           <Link to="/dashboard" className="logo">
