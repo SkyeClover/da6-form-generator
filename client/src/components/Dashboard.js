@@ -19,7 +19,10 @@ const Dashboard = () => {
               <p>Generate a new duty roster form</p>
               <button 
                 className="card-button"
-                onClick={() => navigate('/forms/new')}
+                onClick={() => {
+                  alert('This shit is making me die inside\n\nForm creation logic has been temporarily disabled. Check back later.');
+                }}
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               >
                 New Form
               </button>
@@ -39,7 +42,10 @@ const Dashboard = () => {
               <p>View and edit your saved forms</p>
               <button 
                 className="card-button"
-                onClick={() => navigate('/forms')}
+                onClick={() => {
+                  alert('This shit is making me die inside\n\nForm viewing logic has been temporarily disabled. Check back later.');
+                }}
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
               >
                 View All
               </button>

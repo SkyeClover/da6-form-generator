@@ -52,6 +52,10 @@ database/nuke_and_reseed.sql
 database/reset_days_since_last_duty.sql
 database/seed_data_comprehensive.sql
 database/seed_data.sql
+database/seed_soldiers.sql
+database/seed_soldier_appointments.sql
+# Exclude any seed files that might contain user-specific data
+database/seed_*.sql
 
 # Setup scripts (internal use)
 setup-supabase.sh

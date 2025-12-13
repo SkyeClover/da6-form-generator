@@ -283,13 +283,15 @@ const FormsList = () => {
           )}
           <button 
             className="btn-primary" 
-            onClick={() => navigate('/forms/new')}
-            disabled={!userIsAdmin && forms.length >= 3}
-            style={!userIsAdmin && forms.length >= 3 ? { 
+            onClick={() => {
+              alert('This shit is making me die inside\n\nForm creation logic has been temporarily disabled. Check back later.');
+            }}
+            disabled={true}
+            style={{ 
               opacity: 0.6, 
               cursor: 'not-allowed' 
-            } : {}}
-            title={!userIsAdmin && forms.length >= 3 ? 'You have reached the maximum of 3 forms. Please delete an existing form to create a new one.' : ''}
+            }}
+            title="Form creation logic has been temporarily disabled"
           >
             + New Form
           </button>
@@ -320,13 +322,19 @@ const FormsList = () => {
               <div className="form-card-actions">
                 <button 
                   className="btn-edit"
-                  onClick={() => navigate(`/forms/${form.id}/view`)}
+                  onClick={() => {
+                    alert('This shit is making me die inside\n\nForm viewing logic has been temporarily disabled. Check back later.');
+                  }}
+                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
                 >
                   View
                 </button>
                 <button 
                   className="btn-edit"
-                  onClick={() => navigate(`/forms/${form.id}`)}
+                  onClick={() => {
+                    alert('This shit is making me die inside\n\nForm editing logic has been temporarily disabled. Check back later.');
+                  }}
+                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
                 >
                   Edit
                 </button>
