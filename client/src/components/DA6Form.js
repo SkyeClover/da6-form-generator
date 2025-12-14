@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
-import { useAuth } from '../contexts/AuthContext';
 import { getAllRanks } from '../utils/rankOrder';
 import { generateRoster } from '../utils/rosterGenerator';
 import { calculateFormStatus } from '../utils/formStatus';
@@ -13,7 +12,6 @@ import './DA6Form.css';
 const DA6Form = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { user } = useAuth();
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
