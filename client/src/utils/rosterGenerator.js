@@ -3,8 +3,8 @@
  * Implements the soldier selection and assignment logic for DA6 forms
  */
 
-import { getRankOrder, rankMatchesRequirement, getRanksInRange, isLowerEnlisted, isNCORank, isWarrantOfficerRank, isOfficerRank } from './rankOrder';
-import { getFederalHolidaysInRange, isFederalHoliday } from './federalHolidays';
+import { getRankOrder, rankMatchesRequirement, isLowerEnlisted, isNCORank, isWarrantOfficerRank, isOfficerRank } from './rankOrder';
+import { getFederalHolidaysInRange } from './federalHolidays';
 import { calculateDaysSinceLastDuty } from './daysSinceDuty';
 
 /**
@@ -208,68 +208,6 @@ const getExceptionForDate = (soldierId, date, appointments, otherForms, currentD
   }
   
   return null;
-};
-
-/**
- * Sort soldiers by selection priority
- * @param {Array} soldiers - Array of soldiers
- * @param {Object} requirement - Rank requirement (optional)
- * @param {Date} referenceDate - Reference date for calculating days since last duty
- * @param {Array} allForms - All forms (any status) for calculating days since last duty
- * @param {Array} appointments - Appointments
- * @returns {Array} Sorted soldiers
- */
-const sortSoldiersByPriority = (soldiers, requirement, referenceDate, allForms, appointments) => {
-  return [...soldiers].sort((a, b) => {
-    // Calculate days since last duty (using all forms regardless of status)
-    const daysA = calculateDaysSinceLastDuty(a, allForms, appointments, referenceDate);
-    const daysB = calculateDaysSinceLastDuty(b, allForms, appointments, referenceDate);
-    
-    // Primary: Days since last duty (descending - most days first)
-    if (daysA !== daysB) {
-      return daysB - daysA;
-    }
-    
-    // Secondary: Rank (if requirement specified, prefer preferred/fallback ranks)
-    if (requirement) {
-      const rankA = (a.rank || '').toUpperCase().trim();
-      const rankB = (b.rank || '').toUpperCase().trim();
-      
-      // Check preferred ranks
-      if (requirement.preferred_ranks && requirement.preferred_ranks.length > 0) {
-        const aIsPreferred = requirement.preferred_ranks.includes(rankA);
-        const bIsPreferred = requirement.preferred_ranks.includes(rankB);
-        if (aIsPreferred && !bIsPreferred) return -1;
-        if (!aIsPreferred && bIsPreferred) return 1;
-      }
-      
-      // Check fallback ranks
-      if (requirement.fallback_ranks && requirement.fallback_ranks.length > 0) {
-        const aIsFallback = requirement.fallback_ranks.includes(rankA);
-        const bIsFallback = requirement.fallback_ranks.includes(rankB);
-        if (aIsFallback && !bIsFallback) return -1;
-        if (!aIsFallback && bIsFallback) return 1;
-      }
-    }
-    
-    // Tertiary: Rank order (lower rank first)
-    const rankOrderA = getRankOrder(a.rank);
-    const rankOrderB = getRankOrder(b.rank);
-    if (rankOrderA !== rankOrderB) {
-      return rankOrderA - rankOrderB;
-    }
-    
-    // Quaternary: Alphabetical (last name, then first name)
-    const lastNameA = (a.last_name || '').toLowerCase();
-    const lastNameB = (b.last_name || '').toLowerCase();
-    if (lastNameA !== lastNameB) {
-      return lastNameA.localeCompare(lastNameB);
-    }
-    
-    const firstNameA = (a.first_name || '').toLowerCase();
-    const firstNameB = (b.first_name || '').toLowerCase();
-    return firstNameA.localeCompare(firstNameB);
-  });
 };
 
 /**

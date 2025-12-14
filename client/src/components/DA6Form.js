@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
-import { isAdmin } from '../utils/adminCheck';
-import { getAllRanks, getRankName } from '../utils/rankOrder';
+import { getAllRanks } from '../utils/rankOrder';
 import { generateRoster } from '../utils/rosterGenerator';
 import { calculateFormStatus } from '../utils/formStatus';
 import { getFederalHolidaysInRange } from '../utils/federalHolidays';
@@ -15,7 +14,6 @@ const DA6Form = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
-  const userIsAdmin = isAdmin(user);
   const isEditing = !!id;
 
   const [loading, setLoading] = useState(false);
@@ -62,6 +60,7 @@ const DA6Form = () => {
     if (isEditing) {
       fetchFormData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchFormData = async () => {
@@ -186,24 +185,6 @@ const DA6Form = () => {
     });
   };
 
-  const handleToggleExcludedRank = (rankCode) => {
-    setFormData(prev => {
-      const ranks = prev.rank_requirements.exclusions.ranks || [];
-      const newRanks = ranks.includes(rankCode)
-        ? ranks.filter(r => r !== rankCode)
-        : [...ranks, rankCode];
-      return {
-        ...prev,
-        rank_requirements: {
-          ...prev.rank_requirements,
-          exclusions: {
-            ...prev.rank_requirements.exclusions,
-            ranks: newRanks
-          }
-        }
-      };
-    });
-  };
 
   const handleToggleExcludedGroup = (group) => {
     setFormData(prev => {

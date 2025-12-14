@@ -78,10 +78,6 @@ const BulkCreateSoldiers = ({ onUpdate, onClose, userIsAdmin, currentSoldierCoun
     setErrors(newErrors);
   };
 
-  const applyCommonToAll = () => {
-    // This is handled by using commonFields in the submit
-    alert('Common fields will be applied to all soldiers when you submit.');
-  };
 
   const validateForm = () => {
     const newErrors = {};

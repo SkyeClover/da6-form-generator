@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../utils/api';
-import { getRankOrder, sortSoldiersByRank, isNCORank, rankMatchesRequirement } from '../utils/rankOrder';
+import { sortSoldiersByRank, isNCORank, rankMatchesRequirement } from '../utils/rankOrder';
 import { getFederalHolidaysInRange } from '../utils/federalHolidays';
 import { getFormStatus, formatFormStatus } from '../utils/formStatus';
 import { getExceptionCodeName } from '../utils/exceptionCodes';
@@ -28,6 +28,7 @@ const DA6FormView = () => {
       fetchAllAppointments();
       fetchOtherForms();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchForm = async () => {
@@ -270,9 +271,6 @@ const DA6FormView = () => {
     return dates;
   };
 
-  const formatDateShort = (date) => {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
 
   const getAssignmentForSoldierDate = (soldierId, dateStr) => {
     // First check form assignments (these take priority)
@@ -531,7 +529,6 @@ const DA6FormView = () => {
                     <th className="name-col">Name</th>
                     <th className="days-col">Days Since Last Duty</th>
                     {dates.map((date, idx) => {
-                      const dateStr = date.toISOString().split('T')[0];
                       const isWeekendDay = isWeekend(date);
                       const isHolidayDay = isHoliday(date);
                       const className = isHolidayDay ? 'weekend-header' : isWeekendDay ? 'weekend-header' : '';
