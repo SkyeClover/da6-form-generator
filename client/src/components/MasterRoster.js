@@ -136,9 +136,12 @@ const MasterRoster = () => {
   const getDatesInRange = () => {
     if (!decodedPeriodStart || !decodedPeriodEnd) return [];
     
+    // Normalize dates to local midnight to prevent timezone shifts
     const dates = [];
     const start = new Date(decodedPeriodStart);
+    start.setHours(0, 0, 0, 0);
     const end = new Date(decodedPeriodEnd);
+    end.setHours(0, 0, 0, 0);
     const current = new Date(start);
     
     while (current <= end) {
@@ -286,7 +289,9 @@ const MasterRoster = () => {
               nature_of_duty: appointment.reason || 'Appointment',
               reason: appointment.reason,
               notes: appointment.notes,
-              isAppointment: true
+              isAppointment: true,
+              start_date: appointment.start_date, // Include start_date for detailed tooltip
+              end_date: appointment.end_date // Include end_date for detailed tooltip
             });
           }
         }
@@ -512,9 +517,25 @@ const MasterRoster = () => {
                                     if (assignment.isAppointment && assignment.reason) {
                                       // For appointments, show the reason and exception code
                                       tooltipText = assignment.reason;
+                                      
+                                      // Add date range for detailed view (especially important for TDY and multi-day appointments)
+                                      if (assignment.start_date && assignment.end_date) {
+                                        const startDate = new Date(assignment.start_date);
+                                        const endDate = new Date(assignment.end_date);
+                                        const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                        const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                        
+                                        // Only show date range if it spans multiple days
+                                        if (assignment.start_date !== assignment.end_date) {
+                                          tooltipText += ` (${startStr} - ${endStr})`;
+                                        } else {
+                                          tooltipText += ` (${startStr})`;
+                                        }
+                                      }
+                                      
                                       if (exceptionCode && exceptionCode !== 'A') {
                                         const exceptionName = getExceptionCodeName(exceptionCode);
-                                        tooltipText += ` (${exceptionName})`;
+                                        tooltipText += ` - ${exceptionName}`;
                                       }
                                       if (assignment.notes && !assignment.notes.includes('DA6_FORM')) {
                                         tooltipText += ` - ${assignment.notes}`;

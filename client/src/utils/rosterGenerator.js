@@ -14,8 +14,12 @@ import { calculateDaysSinceLastDuty } from './daysSinceDuty';
  * @returns {Array<Date>} Array of dates
  */
 export const getDatesInRange = (startDate, endDate) => {
+  // Normalize dates to local midnight to prevent timezone shifts
   const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
   const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  
   const dates = [];
   const current = new Date(start);
   
@@ -784,12 +788,17 @@ export const generateRoster = (formData, soldiers, appointments, otherForms = []
         a => a.soldier_id === soldierId && a.date === dateStr && a.duty === true
       );
       
+      // CRITICAL: Also check if soldier has a pass on this date - passes should never be overwritten
+      const hasPassAssignment = assignments.some(
+        a => a.soldier_id === soldierId && a.date === dateStr && a.exception_code === 'P'
+      );
+      
       // Check if an assignment already exists for this soldier on this date
       const existingAssignmentIndex = assignments.findIndex(
         a => a.soldier_id === soldierId && a.date === dateStr
       );
       
-      if (!hasDutyAssignment) {
+      if (!hasDutyAssignment && !hasPassAssignment) {
         if (existingAssignmentIndex === -1) {
           // No assignment exists, create new exception assignment
           assignments.push({
@@ -809,8 +818,8 @@ export const generateRoster = (formData, soldiers, appointments, otherForms = []
         } else {
           // Assignment exists - only update if it's not a pass (passes take priority)
           const existingAssignment = assignments[existingAssignmentIndex];
-          if (existingAssignment.exception_code !== 'P') {
-            // Update existing assignment with exception (but don't overwrite passes)
+          if (existingAssignment.exception_code !== 'P' && !existingAssignment.duty) {
+            // Update existing assignment with exception (but don't overwrite passes or duties)
             assignments[existingAssignmentIndex].exception_code = exception.code;
             
             if (!assignmentsBySoldier[soldierId]) {
@@ -821,7 +830,7 @@ export const generateRoster = (formData, soldiers, appointments, otherForms = []
               duty: false
             };
           }
-          // If it's a pass, leave it as is - passes indicate days off after duty
+          // If it's a pass or duty, leave it as is - passes indicate days off after duty
         }
       }
     }

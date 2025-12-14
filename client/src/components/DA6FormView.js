@@ -254,9 +254,12 @@ const DA6FormView = () => {
   const getDatesInRange = () => {
     if (!form || !form.period_start || !form.period_end) return [];
     
+    // Normalize dates to local midnight to prevent timezone shifts
     const dates = [];
     const start = new Date(form.period_start);
+    start.setHours(0, 0, 0, 0);
     const end = new Date(form.period_end);
+    end.setHours(0, 0, 0, 0);
     const current = new Date(start);
     
     while (current <= end) {
@@ -346,7 +349,9 @@ const DA6FormView = () => {
         notes: appointment.notes, // Include notes for additional context
         isAppointment: true, // Flag to indicate this came from an appointment
         isFromThisForm: isFromThisForm, // Flag to indicate if it's from this form
-        form_id: appointment.form_id // Include form_id for checking
+        form_id: appointment.form_id, // Include form_id for checking
+        start_date: appointment.start_date, // Include start_date for detailed tooltip
+        end_date: appointment.end_date // Include end_date for detailed tooltip
       };
     }
     
@@ -629,9 +634,25 @@ const DA6FormView = () => {
                           // This ensures appointments show their actual reason (e.g., "Leave" not "BN Staff Duty")
                           if (assignment.isAppointment && assignment.reason) {
                             tooltipText = assignment.reason;
+                            
+                            // Add date range for detailed view (especially important for TDY and multi-day appointments)
+                            if (assignment.start_date && assignment.end_date) {
+                              const startDate = new Date(assignment.start_date);
+                              const endDate = new Date(assignment.end_date);
+                              const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                              const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                              
+                              // Only show date range if it spans multiple days
+                              if (assignment.start_date !== assignment.end_date) {
+                                tooltipText += ` (${startStr} - ${endStr})`;
+                              } else {
+                                tooltipText += ` (${startStr})`;
+                              }
+                            }
+                            
                             if (assignment.exception_code && assignment.exception_code !== 'A') {
                               const exceptionName = getExceptionCodeName(assignment.exception_code);
-                              tooltipText += ` (${exceptionName})`;
+                              tooltipText += ` - ${exceptionName}`;
                             }
                             // Add notes if available for additional context
                             if (assignment.notes && !assignment.notes.includes('DA6_FORM')) {
