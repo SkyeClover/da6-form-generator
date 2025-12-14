@@ -61,10 +61,16 @@ export const AuthProvider = ({ children }) => {
     if (!isSupabaseConfigured()) {
       return { data: null, error: new Error('Supabase is not configured') };
     }
+    
+    // Determine redirect URL - use localhost for local development
+    const redirectUrl = process.env.NODE_ENV === 'development' 
+      ? 'http://localhost:3000/dashboard'
+      : `${window.location.origin}/dashboard`;
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: redirectUrl,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',

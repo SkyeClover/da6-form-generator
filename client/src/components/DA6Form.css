@@ -2,6 +2,7 @@
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .form-header {
@@ -10,12 +11,14 @@
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #eee;
+  border-bottom: 2px solid var(--border-color);
+  animation: slideIn var(--transition-base) ease-out;
 }
 
 .form-header h2 {
-  color: #1e3c72;
+  color: var(--text-primary);
   margin: 0;
+  font-size: 1.75rem;
 }
 
 .form-actions-header {
@@ -24,10 +27,12 @@
 }
 
 .form-content {
-  background: white;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
   padding: 2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  animation: scaleIn var(--transition-base) ease-out;
 }
 
 .form-section {
@@ -39,7 +44,7 @@
 }
 
 .form-section h3 {
-  color: #1e3c72;
+  color: var(--primary);
   margin-bottom: 1rem;
   font-size: 1.3rem;
 }
@@ -65,7 +70,7 @@
 
 .form-group label {
   margin-bottom: 0.5rem;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -73,17 +78,21 @@
 .form-group select,
 .form-group textarea {
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 1rem;
   font-family: inherit;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
 }
 
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #1e3c72;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.1);
 }
 
 .assignments-list {
@@ -93,10 +102,16 @@
 }
 
 .assignment-card {
-  background: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   padding: 1.5rem;
+  transition: all var(--transition-base);
+}
+
+.assignment-card:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary);
 }
 
 .assignment-header {
@@ -105,11 +120,11 @@
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .assignment-header h4 {
-  color: #1e3c72;
+  color: var(--primary);
   margin: 0;
   font-size: 1.1rem;
 }
@@ -132,19 +147,20 @@
 .empty-state {
   text-align: center;
   padding: 2rem;
-  color: #666;
-  background: #f9f9f9;
-  border-radius: 6px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
 }
 
 .loading {
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .section-description {
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 1.5rem;
   font-size: 0.95rem;
 }
@@ -493,17 +509,23 @@
 }
 
 .rank-requirements-list h5 {
-  color: #1e3c72;
+  color: var(--primary);
   margin-bottom: 1rem;
   font-size: 1rem;
 }
 
 .rank-requirement-item {
-  background: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1rem;
+  transition: all var(--transition-base);
+}
+
+.rank-requirement-item:hover {
+  box-shadow: var(--shadow-sm);
+  border-color: var(--primary);
 }
 
 .requirement-main {
@@ -517,22 +539,39 @@
 .requirement-quantity {
   width: 60px;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   text-align: center;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+
+.requirement-quantity:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .requirement-label {
-  color: #666;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .requirement-group-select,
 .requirement-range-select {
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+
+.requirement-group-select:focus,
+.requirement-range-select:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .requirement-preferences {
@@ -540,7 +579,7 @@
   flex-direction: column;
   gap: 0.5rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-color);
 }
 
 .requirement-preferences label {
@@ -548,25 +587,34 @@
   flex-direction: column;
   gap: 0.25rem;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .preferred-ranks-input,
 .fallback-ranks-input {
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 0.9rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: border-color var(--transition-fast);
+}
+
+.preferred-ranks-input:focus,
+.fallback-ranks-input:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 .rank-exclusions {
   margin-top: 2rem;
   padding-top: 1.5rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-color);
 }
 
 .rank-exclusions h5 {
-  color: #1e3c72;
+  color: var(--primary);
   margin-bottom: 0.5rem;
   font-size: 1rem;
 }
@@ -585,7 +633,7 @@
 
 .exclusion-groups > label:first-child {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   margin-bottom: 0.5rem;
 }
 
@@ -621,5 +669,17 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.9rem;
+}
+
+/* Button Styles */
+/* Button styles now use global styles from index.css */
+
+.error-message {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background-color: #ffebee;
+  color: #c62828;
+  border-radius: 4px;
+  border: 1px solid #ef5350;
 }
 

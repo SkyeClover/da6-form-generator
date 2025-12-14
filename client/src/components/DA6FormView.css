@@ -2,8 +2,9 @@
   padding: 2rem;
   max-width: 100%;
   margin: 0 auto;
-  background: white;
+  background: var(--bg-primary);
   min-height: calc(100vh - 80px);
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .form-view-header {
@@ -12,11 +13,12 @@
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 3px solid #1e3c72;
+  border-bottom: 3px solid var(--primary);
+  animation: slideIn var(--transition-base) ease-out;
 }
 
 .form-view-header h1 {
-  color: #1e3c72;
+  color: var(--text-primary);
   margin: 0;
   font-size: 2rem;
   font-weight: 700;
@@ -28,16 +30,19 @@
 }
 
 .form-actions-header button.active {
-  background: #1e3c72;
-  color: white;
-  border-color: #1e3c72;
+  background: var(--primary);
+  color: var(--text-inverse);
+  border-color: var(--primary);
 }
 
+/* Button styles now use global styles from index.css */
+
 .roster-info {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 2rem;
+  border: 1px solid var(--border-color);
 }
 
 .info-row {
@@ -51,15 +56,16 @@
 }
 
 .info-row span {
-  color: #333;
+  color: var(--text-primary);
   font-size: 0.95rem;
 }
 
 .roster-container {
   overflow-x: auto;
-  border: 2px solid #ddd;
-  border-radius: 6px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
   margin-bottom: 2rem;
+  background: var(--bg-secondary);
 }
 
 .roster-table-wrapper {
@@ -70,12 +76,12 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  background: white;
+  background: var(--bg-secondary);
 }
 
 .roster-table thead {
-  background: #1e3c72;
-  color: white;
+  background: var(--primary);
+  color: var(--text-inverse);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -85,25 +91,26 @@
   padding: 0.5rem;
   text-align: center;
   font-weight: 600;
-  border: 1px solid #2a5298;
+  border: 1px solid var(--primary-hover);
   min-width: 40px;
+  color: var(--text-inverse);
 }
 
 .grade-col {
   width: 80px;
-  background: #2a5298;
+  background: var(--primary-hover);
 }
 
 .name-col {
   width: 200px;
   text-align: left !important;
-  background: #2a5298;
+  background: var(--primary-hover);
 }
 
 .days-col {
   width: 120px;
   text-align: center !important;
-  background: #2a5298;
+  background: var(--primary-hover);
 }
 
 .date-col {
@@ -128,36 +135,39 @@
 }
 
 .roster-table tbody tr {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color var(--transition-fast);
 }
 
 .roster-table tbody tr:hover {
-  background: #f9f9f9;
+  background: var(--bg-hover);
 }
 
 .grade-cell {
-  background: #e8eaf6;
+  background: var(--bg-tertiary);
   font-weight: 600;
   text-align: center;
   vertical-align: middle;
-  border-right: 2px solid #ddd;
-  color: #1e3c72;
+  border-right: 2px solid var(--border-color);
+  color: var(--primary);
 }
 
 .name-cell {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   font-weight: 500;
   padding: 0.5rem;
-  border-right: 2px solid #ddd;
+  border-right: 2px solid var(--border-color);
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .days-cell {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   text-align: center;
   padding: 0.5rem;
-  border-right: 2px solid #ddd;
+  border-right: 2px solid var(--border-color);
   vertical-align: middle;
+  color: var(--text-primary);
 }
 
 .days-badge {
@@ -169,55 +179,150 @@
 }
 
 .days-badge.low {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .days-badge.medium {
-  background: #fff3cd;
-  color: #856404;
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  border: 1px solid var(--warning);
 }
 
 .days-badge.high {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+  border: 1px solid var(--error);
 }
 
 .assignment-cell {
   text-align: center;
   padding: 0.25rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
   min-width: 35px;
   height: 35px;
   vertical-align: middle;
   position: relative;
   font-size: 0.85rem;
   font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.cell-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.cell-main-content {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cell-days-indicator {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+  line-height: 1;
+  margin-top: 2px;
+  opacity: 0.7;
 }
 
 .assignment-cell.weekend {
-  background: #fff9e6;
+  background: rgba(245, 158, 11, 0.1);
 }
 
-.assignment-cell.assigned {
-  background: #c5cae9;
+.assignment-cell.assigned,
+.assignment-cell.duty-cell {
+  background: rgba(59, 130, 246, 0.2);
   font-weight: 600;
+  color: var(--primary);
+  border-color: var(--primary);
 }
 
-.assignment-cell.exception {
-  background: #ffccbc;
+.assignment-cell.exception,
+.assignment-cell.exception-cell {
+  background: rgba(239, 68, 68, 0.2);
   font-weight: 600;
-  color: #d84315;
+  color: var(--error);
+  border-color: var(--error);
+}
+
+.assignment-cell.pass-cell {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  font-weight: 600;
+  border-color: var(--success);
+}
+
+.assignment-cell.pass-cell.pass-from-this-form {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  font-weight: 600;
+  border-color: var(--success);
+}
+
+.assignment-cell.pass-cell.pass-other-appointment,
+.assignment-cell.other-appointment {
+  background: rgba(234, 179, 8, 0.2);
+  color: #a16207;
+  font-weight: 600;
+  border-color: #eab308;
+}
+
+/* Tooltip styles for exception codes */
+.assignment-cell[title]:not([title=""]) {
+  cursor: help;
+  position: relative;
+}
+
+/* Enhanced tooltip on hover */
+.assignment-cell:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
+  margin-bottom: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.assignment-cell:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+  z-index: 1001;
+  pointer-events: none;
+  margin-bottom: -5px;
 }
 
 .assignment-mark {
   display: inline-block;
-  color: #1e3c72;
+  color: var(--primary);
   font-size: 0.9rem;
 }
 
 .assignment-cell.exception .assignment-mark {
-  color: #d84315;
+  color: var(--error);
 }
 
 .form-footer {
@@ -225,7 +330,7 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 1rem;
-  border-top: 2px solid #ddd;
+  border-top: 2px solid var(--border-color);
 }
 
 .status-badge-large {
@@ -235,25 +340,47 @@
   text-transform: uppercase;
 }
 
+.status-badge-large.status-pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  border: 1px solid var(--warning);
+}
+
+.status-badge-large.status-in_progress {
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--info);
+  border: 1px solid var(--info);
+}
+
+.status-badge-large.status-ended {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--info);
+  border: 1px solid var(--info);
+}
+
+/* Legacy status support */
 .status-badge-large.status-draft {
-  background: #fff3cd;
-  color: #856404;
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  border: 1px solid var(--warning);
 }
 
 .status-badge-large.status-completed {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .status-badge-large.status-submitted {
-  background: #cce5ff;
-  color: #004085;
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--info);
+  border: 1px solid var(--info);
 }
 
 .form-meta {
   display: flex;
   gap: 1.5rem;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -261,66 +388,70 @@
 .error {
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .error {
-  color: #d32f2f;
+  color: var(--error);
 }
 
 /* Compact List View */
 .compact-list-container {
   overflow-x: auto;
-  border: 2px solid #ddd;
-  border-radius: 6px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
   margin-bottom: 2rem;
+  background: var(--bg-secondary);
 }
 
 .compact-list-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
-  background: white;
+  background: var(--bg-secondary);
 }
 
 .compact-list-table thead {
-  background: #1e3c72;
-  color: white;
+  background: var(--primary);
+  color: var(--text-inverse);
 }
 
 .compact-list-table th {
   padding: 0.75rem 1rem;
   text-align: left;
   font-weight: 600;
-  border: 1px solid #2a5298;
+  border: 1px solid var(--primary-hover);
+  color: var(--text-inverse);
 }
 
 .compact-list-table tbody tr {
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-color);
+  transition: background-color var(--transition-fast);
 }
 
 .compact-list-table tbody tr:hover {
-  background: #f9f9f9;
+  background: var(--bg-hover);
 }
 
 .compact-list-table td {
   padding: 0.75rem 1rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .compact-date {
   font-weight: 500;
-  color: #1e3c72;
+  color: var(--primary);
   white-space: nowrap;
 }
 
 .compact-duty {
   font-weight: 500;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .compact-soldiers {
-  color: #555;
+  color: var(--text-secondary);
 }
 
 /* Print styles */

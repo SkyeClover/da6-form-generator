@@ -1,0 +1,323 @@
+.bulk-create-soldiers-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  overflow-y: auto;
+  backdrop-filter: blur(4px);
+  animation: fadeIn var(--transition-fast) ease-out;
+}
+
+.bulk-create-soldiers-content {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 1200px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
+  animation: scaleIn var(--transition-base) ease-out;
+}
+
+.bulk-create-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.bulk-create-header h3 {
+  margin: 0;
+  font-size: 24px;
+  color: var(--text-primary);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all var(--transition-base);
+}
+
+.close-button:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.bulk-create-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
+}
+
+.common-fields-section {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.common-fields-section h4 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.common-fields-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.common-fields-grid .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.common-fields-grid label {
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.common-fields-grid input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color var(--transition-base);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.common-fields-grid input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.1);
+}
+
+.common-fields-grid input.error {
+  border-color: var(--error);
+}
+
+.error-message {
+  color: var(--error);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.soldiers-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.soldiers-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.soldiers-section-header h4 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.btn-add-row {
+  background: var(--primary);
+  color: var(--text-inverse);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-base);
+}
+
+.btn-add-row:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.soldiers-table-wrapper {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-secondary);
+}
+
+.bulk-create-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-secondary);
+}
+
+.bulk-create-table thead {
+  background: var(--bg-tertiary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.bulk-create-table th {
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.bulk-create-table th.actions-col {
+  width: 60px;
+  text-align: center;
+}
+
+.bulk-create-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.bulk-create-table tbody tr {
+  transition: background-color var(--transition-fast);
+}
+
+.bulk-create-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.bulk-create-table tbody tr.row-error {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.bulk-create-table tbody tr.row-error:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.bulk-create-table input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color var(--transition-base);
+  box-sizing: border-box;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.bulk-create-table input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(30, 60, 114, 0.1);
+}
+
+.bulk-create-table input.error {
+  border-color: var(--error);
+}
+
+.bulk-create-table input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.error-message-inline {
+  display: block;
+  color: var(--error);
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.bulk-create-table td.actions-col {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.btn-remove-row {
+  background: var(--error);
+  color: var(--text-inverse);
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  padding: 0;
+}
+
+.btn-remove-row:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-remove-row:disabled {
+  background: var(--border-color);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border-color);
+}
+
+/* Button styles now use global styles from index.css */
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .bulk-create-soldiers-content {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .common-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .soldiers-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .bulk-create-table {
+    min-width: 800px;
+  }
+}
+

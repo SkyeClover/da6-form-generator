@@ -1,6 +1,6 @@
 // Admin email and UID that bypasses limits
 const ADMIN_EMAIL = 'jacobwalker852@gmail.com';
-const ADMIN_UID = 'a7acf98d-04bc-47f2-bf0d-8d061a2dc67e';
+const ADMIN_UID = '5834513e-2e93-44b9-b0a1-41c383009b55';
 
 /**
  * Check if a user is an admin (bypasses limits)

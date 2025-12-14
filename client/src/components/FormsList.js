@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import apiClient from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import { isAdmin } from '../utils/adminCheck';
+import { getFormStatus, formatFormStatus } from '../utils/formStatus';
 import Layout from './Layout';
 import LoadingScreen from './LoadingScreen';
 import './FormsList.css';
@@ -163,6 +164,16 @@ const FormsList = () => {
         const { data } = await apiClient.get(`/appointments/by-form/${id}`);
         const appointments = data.appointments || [];
         
+        // Debug: Log breakdown of appointments to be deleted
+        const dutyAppts = appointments.filter(apt => apt.exception_code === 'D');
+        const passAppts = appointments.filter(apt => apt.exception_code === 'P');
+        const otherAppts = appointments.filter(apt => apt.exception_code !== 'D' && apt.exception_code !== 'P');
+        console.log(`Found ${appointments.length} appointment(s) to delete for form ${id}:`, {
+          duty: dutyAppts.length,
+          pass: passAppts.length,
+          other: otherAppts.length
+        });
+        
         if (appointments.length > 0) {
           // Use bulk delete endpoint for faster deletion
           const appointmentIds = appointments.map(apt => apt.id);
@@ -170,7 +181,7 @@ const FormsList = () => {
             await apiClient.post('/appointments/bulk-delete', {
               appointmentIds: appointmentIds
             });
-            console.log(`Removed ${appointmentIds.length} appointment(s) before deleting form ${id}`);
+            console.log(`Removed ${appointmentIds.length} appointment(s) before deleting form ${id} (${dutyAppts.length} duty, ${passAppts.length} pass, ${otherAppts.length} other)`);
           } catch (bulkErr) {
             // Fallback to individual deletes if bulk delete fails
             console.warn('Bulk delete failed, falling back to individual deletes:', bulkErr);
@@ -224,12 +235,9 @@ const FormsList = () => {
     });
   };
 
-  const formatStatus = (status) => {
-    if (!status) return 'Draft';
-    // Convert snake_case to Title Case
-    return status.split('_').map(word => 
-      word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
+  const formatStatus = (form) => {
+    // Calculate status dynamically based on dates
+    return formatFormStatus(getFormStatus(form));
   };
 
   if (loading) {
@@ -283,15 +291,9 @@ const FormsList = () => {
           )}
           <button 
             className="btn-primary" 
-            onClick={() => {
-              alert('This shit is making me die inside\n\nForm creation logic has been temporarily disabled. Check back later.');
-            }}
-            disabled={true}
-            style={{ 
-              opacity: 0.6, 
-              cursor: 'not-allowed' 
-            }}
-            title="Form creation logic has been temporarily disabled"
+            onClick={() => navigate('/forms/new')}
+            disabled={!userIsAdmin && forms.length >= 3}
+            title={!userIsAdmin && forms.length >= 3 ? 'Form limit reached (3/3)' : 'Create a new DA6 form'}
           >
             + New Form
           </button>
@@ -307,9 +309,9 @@ const FormsList = () => {
           {forms.map((form) => (
             <div key={form.id} className="form-card">
               <div className="form-card-header">
-                <h3>{form.unit_name}</h3>
-                <span className={`status-badge status-${form.status}`}>
-                  {formatStatus(form.status)}
+                <h3>{form.form_data?.duty_config?.nature_of_duty || form.unit_name || 'Duty'}</h3>
+                <span className={`status-badge status-${getFormStatus(form)}`}>
+                  {formatStatus(form)}
                 </span>
               </div>
               <div className="form-card-body">
@@ -322,19 +324,13 @@ const FormsList = () => {
               <div className="form-card-actions">
                 <button 
                   className="btn-edit"
-                  onClick={() => {
-                    alert('This shit is making me die inside\n\nForm viewing logic has been temporarily disabled. Check back later.');
-                  }}
-                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  onClick={() => navigate(`/forms/${form.id}/view`)}
                 >
                   View
                 </button>
                 <button 
                   className="btn-edit"
-                  onClick={() => {
-                    alert('This shit is making me die inside\n\nForm editing logic has been temporarily disabled. Check back later.');
-                  }}
-                  style={{ opacity: 0.6, cursor: 'not-allowed' }}
+                  onClick={() => navigate(`/forms/${form.id}`)}
                 >
                   Edit
                 </button>

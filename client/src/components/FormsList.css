@@ -2,6 +2,7 @@
   padding: 2rem;
   max-width: 1400px;
   margin: 0 auto;
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .forms-header {
@@ -9,11 +10,13 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  animation: slideIn var(--transition-base) ease-out;
 }
 
 .forms-header h2 {
-  color: #1e3c72;
+  color: var(--text-primary);
   margin: 0;
+  font-size: 1.75rem;
 }
 
 .forms-grid {
@@ -23,16 +26,19 @@
 }
 
 .form-card {
-  background: white;
-  border-radius: 8px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-color);
+  transition: all var(--transition-base);
+  animation: scaleIn var(--transition-base) ease-out;
 }
 
 .form-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
 }
 
 .form-card-header {
@@ -41,11 +47,11 @@
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .form-card-header h3 {
-  color: #1e3c72;
+  color: var(--primary);
   margin: 0;
   font-size: 1.2rem;
 }
@@ -58,35 +64,48 @@
   text-transform: capitalize;
 }
 
-.status-draft {
-  background: #fff3cd;
-  color: #856404;
+.status-pending {
+  background: rgba(245, 158, 11, 0.2);
+  color: var(--warning);
+  border: 1px solid var(--warning);
 }
 
 .status-in_progress {
-  background: #cfe2ff;
-  color: #084298;
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--info);
+  border: 1px solid var(--info);
 }
 
+.status-ended {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--info);
+  border: 1px solid var(--info);
+}
+
+/* Legacy status support */
 .status-complete {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .status-cancelled {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+  border: 1px solid var(--error);
 }
 
 /* Legacy status support */
 .status-completed {
-  background: #d4edda;
-  color: #155724;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .status-submitted {
-  background: #cce5ff;
-  color: #004085;
+  background: rgba(59, 130, 246, 0.2);
+  color: var(--info);
+  border: 1px solid var(--info);
 }
 
 .form-card-body {
@@ -95,7 +114,7 @@
 
 .form-card-body p {
   margin: 0.5rem 0;
-  color: #666;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -103,20 +122,21 @@
   display: flex;
   gap: 0.5rem;
   padding-top: 1rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border-color);
 }
 
 .empty-state {
   text-align: center;
   padding: 3rem;
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 8px;
-  color: #666;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
 .loading {
   text-align: center;
   padding: 3rem;
-  color: #666;
+  color: var(--text-secondary);
 }
 

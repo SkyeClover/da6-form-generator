@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 5000;
 
 // Admin email and UID that bypasses limits
 const ADMIN_EMAIL = 'jacobwalker852@gmail.com';
-const ADMIN_UID = 'a7acf98d-04bc-47f2-bf0d-8d061a2dc67e';
+const ADMIN_UID = '5834513e-2e93-44b9-b0a1-41c383009b55';
 
 // Helper function to check if user should have limits applied
 const shouldApplyLimits = (userEmail, userId) => {
@@ -199,17 +199,35 @@ app.put('/api/da6-forms/:id', verifyAuth, async (req, res) => {
 
 app.delete('/api/da6-forms/:id', verifyAuth, async (req, res) => {
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('da6_forms')
       .delete()
       .eq('id', req.params.id)
-      .eq('user_id', req.user.id);
+      .eq('user_id', req.user.id)
+      .select();
 
     if (error) throw error;
-    res.json({ message: 'Form deleted successfully' });
+    
+    // Ensure we always send JSON
+    if (!res.headersSent) {
+      res.json({ message: 'Form deleted successfully' });
+    }
   } catch (error) {
     console.error('Error deleting DA6 form:', error);
-    res.status(500).json({ error: 'Failed to delete DA6 form' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
+    
+    // Ensure we always send JSON, even on error
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to delete DA6 form',
+        message: error.message || 'Unknown error'
+      });
+    }
   }
 });
 
@@ -299,6 +317,83 @@ app.delete('/api/soldiers/:id', verifyAuth, async (req, res) => {
   } catch (error) {
     console.error('Error deleting soldier:', error);
     res.status(500).json({ error: 'Failed to delete soldier' });
+  }
+});
+
+// Bulk delete soldiers
+app.post('/api/soldiers/bulk-delete', verifyAuth, async (req, res) => {
+  try {
+    const { soldierIds } = req.body;
+    
+    if (!Array.isArray(soldierIds) || soldierIds.length === 0) {
+      return res.status(400).json({ error: 'soldierIds must be a non-empty array' });
+    }
+
+    // Verify all soldiers belong to user and delete them
+    const { error } = await supabase
+      .from('soldiers')
+      .delete()
+      .in('id', soldierIds)
+      .eq('user_id', req.user.id);
+
+    if (error) throw error;
+    res.json({ message: `Successfully deleted ${soldierIds.length} soldier(s)` });
+  } catch (error) {
+    console.error('Error bulk deleting soldiers:', error);
+    res.status(500).json({ error: 'Failed to delete soldiers' });
+  }
+});
+
+// Bulk update days since last duty
+app.post('/api/soldiers/bulk-update-days', verifyAuth, async (req, res) => {
+  try {
+    const { updates } = req.body;
+    
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'updates must be an object mapping soldier IDs to days' });
+    }
+
+    const soldierIds = Object.keys(updates);
+    if (soldierIds.length === 0) {
+      return res.status(400).json({ error: 'No soldiers to update' });
+    }
+
+    // Verify all soldiers belong to user
+    const { data: soldiers, error: soldiersError } = await supabase
+      .from('soldiers')
+      .select('id')
+      .in('id', soldierIds)
+      .eq('user_id', req.user.id);
+
+    if (soldiersError) throw soldiersError;
+    
+    const validSoldierIds = new Set(soldiers.map(s => s.id));
+    const invalidIds = soldierIds.filter(id => !validSoldierIds.has(id));
+    
+    if (invalidIds.length > 0) {
+      return res.status(400).json({ 
+        error: 'Some soldiers do not belong to you' 
+      });
+    }
+
+    // Update each soldier
+    const updatePromises = soldierIds.map(soldierId => {
+      const days = parseInt(updates[soldierId]);
+      if (isNaN(days)) {
+        return Promise.resolve();
+      }
+      return supabase
+        .from('soldiers')
+        .update({ days_since_last_duty: days })
+        .eq('id', soldierId)
+        .eq('user_id', req.user.id);
+    });
+
+    await Promise.all(updatePromises);
+    res.json({ message: `Successfully updated ${soldierIds.length} soldier(s)` });
+  } catch (error) {
+    console.error('Error bulk updating days:', error);
+    res.status(500).json({ error: 'Failed to update soldiers' });
   }
 });
 
@@ -434,28 +529,250 @@ app.get('/api/appointments/by-form/:formId', verifyAuth, async (req, res) => {
     // Verify form belongs to user
     const { data: form, error: formError } = await supabase
       .from('da6_forms')
-      .select('id')
+      .select('id, period_start, period_end, created_at')
       .eq('id', req.params.formId)
       .eq('user_id', req.user.id)
       .single();
 
-    if (formError || !form) {
+    if (formError) {
+      console.error('Error fetching form:', formError);
+      return res.status(500).json({ error: 'Failed to fetch form', details: formError.message });
+    }
+    
+    if (!form) {
       return res.status(404).json({ error: 'Form not found' });
     }
 
-    // Get all appointments with notes containing the form ID
-    const { data, error } = await supabase
+    // PRIMARY METHOD: Get all appointments with form_id matching the form UUID
+    // This is the most reliable method using direct foreign key relationship
+    const { data: appointmentsByFormId, error: error1 } = await supabase
+      .from('soldier_appointments')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .eq('form_id', req.params.formId)
+      .order('start_date', { ascending: true });
+
+    if (error1) throw error1;
+
+    // FALLBACK METHOD: Also check notes field for backward compatibility
+    // This catches appointments created before form_id column was added or if form_id wasn't set
+    // Note: We check notes for ALL appointments (not just form_id IS NULL) to be thorough
+    // The deduplication step will remove any duplicates from the PRIMARY METHOD
+    const { data: appointmentsByNotes, error: error2 } = await supabase
       .from('soldier_appointments')
       .select('*')
       .eq('user_id', req.user.id)
       .like('notes', `%DA6_FORM:${req.params.formId}%`)
       .order('start_date', { ascending: true });
 
-    if (error) throw error;
-    res.json({ appointments: data || [] });
+    if (error2) throw error2;
+
+    // FALLBACK METHOD 2: Check for DA6_FORM:NEW appointments created around the same time
+    // (within 5 minutes of form creation) to catch appointments created before form ID was available
+    const formCreatedAt = new Date(form.created_at);
+    const fiveMinutesLater = new Date(formCreatedAt.getTime() + 5 * 60 * 1000);
+    
+    const { data: appointmentsWithNew, error: error3 } = await supabase
+      .from('soldier_appointments')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .is('form_id', null) // Only check notes if form_id is null
+      .like('notes', '%DA6_FORM:NEW%')
+      .in('exception_code', ['P', 'D']) // Both pass and duty appointments can be auto-generated
+      .gte('created_at', formCreatedAt.toISOString())
+      .lte('created_at', fiveMinutesLater.toISOString())
+      .order('start_date', { ascending: true });
+
+    if (error3) throw error3;
+    
+    // FALLBACK METHOD 2B: Also check for appointments with DA6_FORM:NEW in notes that fall within the form's date range
+    // This catches appointments that might have been created but the form_id was never set
+    // This is more aggressive but necessary to catch old appointments
+    let appointmentsWithNewInDateRange = [];
+    if (form.period_start && form.period_end) {
+      try {
+        const { data: newDateRangeAppts, error: error3b } = await supabase
+          .from('soldier_appointments')
+          .select('*')
+          .eq('user_id', req.user.id)
+          .is('form_id', null)
+          .like('notes', '%DA6_FORM:NEW%')
+          .in('exception_code', ['P', 'D'])
+          .gte('start_date', form.period_start)
+          .lte('start_date', form.period_end)
+          .order('start_date', { ascending: true });
+        
+        if (!error3b && newDateRangeAppts) {
+          appointmentsWithNewInDateRange = newDateRangeAppts;
+          if (appointmentsWithNewInDateRange.length > 0) {
+            console.log(`[FALLBACK 2B] Found ${appointmentsWithNewInDateRange.length} DA6_FORM:NEW appointment(s) in date range`);
+          }
+        }
+      } catch (error3b) {
+        console.warn('Error in fallback 2B query:', error3b);
+      }
+    }
+    
+    // Combine initial results to check if we need fallback 3
+    const initialAppointments = [
+      ...(appointmentsByFormId || []), 
+      ...(appointmentsByNotes || []), 
+      ...(appointmentsWithNew || []),
+      ...(appointmentsWithNewInDateRange || [])
+    ];
+    const initialUnique = Array.from(
+      new Map(initialAppointments.map(apt => [apt.id, apt])).values()
+    );
+    
+    // FALLBACK METHOD 3: Also check for appointments within the form's date range that might be related
+    // This catches appointments that might have been created but not properly linked
+    // Only check if we haven't found many appointments yet (to avoid false positives)
+    let appointmentsByDateRange = [];
+    if (initialUnique.length < 10 && form.period_start && form.period_end) {
+      try {
+        // Use separate queries for null and matching form_id to avoid .or() syntax issues
+        const { data: dateRangeApptsNull, error: error4a } = await supabase
+          .from('soldier_appointments')
+          .select('*')
+          .eq('user_id', req.user.id)
+          .in('exception_code', ['P', 'D'])
+          .gte('start_date', form.period_start)
+          .lte('start_date', form.period_end)
+          .is('form_id', null)
+          .order('start_date', { ascending: true });
+        
+        const { data: dateRangeApptsMatching, error: error4b } = await supabase
+          .from('soldier_appointments')
+          .select('*')
+          .eq('user_id', req.user.id)
+          .in('exception_code', ['P', 'D'])
+          .gte('start_date', form.period_start)
+          .lte('start_date', form.period_end)
+          .eq('form_id', req.params.formId)
+          .order('start_date', { ascending: true });
+        
+        if (!error4a && !error4b) {
+          const combined = [
+            ...(dateRangeApptsNull || []),
+            ...(dateRangeApptsMatching || [])
+          ];
+          
+          // Filter to only include appointments that might be related (have DA6_FORM in notes or no form_id)
+          appointmentsByDateRange = combined.filter(apt => 
+            !apt.form_id || 
+            apt.form_id === req.params.formId ||
+            (apt.notes && apt.notes.includes('DA6_FORM'))
+          );
+          
+          if (appointmentsByDateRange.length > 0) {
+            console.log(`[FALLBACK 3] Found ${appointmentsByDateRange.length} appointment(s) in date range that might be related`);
+          }
+        } else {
+          if (error4a) console.warn('Error in fallback 3a query (null form_id):', error4a);
+          if (error4b) console.warn('Error in fallback 3b query (matching form_id):', error4b);
+        }
+      } catch (error4) {
+        // Ignore errors in fallback method
+        console.warn('Error in fallback date range query:', error4);
+      }
+    }
+
+    // Combine and deduplicate by appointment ID
+    const allAppointments = [
+      ...(appointmentsByFormId || []), 
+      ...(appointmentsByNotes || []), 
+      ...(appointmentsWithNew || []),
+      ...(appointmentsWithNewInDateRange || []),
+      ...(appointmentsByDateRange || [])
+    ];
+    const uniqueAppointments = Array.from(
+      new Map(allAppointments.map(apt => [apt.id, apt])).values()
+    );
+
+    // Debug: Log breakdown by exception code
+    const dutyAppts = uniqueAppointments.filter(apt => apt.exception_code === 'D');
+    const passAppts = uniqueAppointments.filter(apt => apt.exception_code === 'P');
+    const otherAppts = uniqueAppointments.filter(apt => apt.exception_code !== 'D' && apt.exception_code !== 'P');
+    
+    // Debug: Log breakdown by how they were found
+    const dutyByFormId = appointmentsByFormId?.filter(apt => apt.exception_code === 'D').length || 0;
+    const dutyByNotes = appointmentsByNotes?.filter(apt => apt.exception_code === 'D').length || 0;
+    const dutyByNew = appointmentsWithNew?.filter(apt => apt.exception_code === 'D').length || 0;
+    const passByFormId = appointmentsByFormId?.filter(apt => apt.exception_code === 'P').length || 0;
+    const passByNotes = appointmentsByNotes?.filter(apt => apt.exception_code === 'P').length || 0;
+    const passByNew = appointmentsWithNew?.filter(apt => apt.exception_code === 'P').length || 0;
+    
+    console.log(`Found ${uniqueAppointments.length} appointment(s) for form ${req.params.formId}:`, {
+      total: uniqueAppointments.length,
+      by_form_id: appointmentsByFormId?.length || 0,
+      by_notes: appointmentsByNotes?.length || 0,
+      by_new_notes: appointmentsWithNew?.length || 0,
+      by_new_in_date_range: appointmentsWithNewInDateRange?.length || 0,
+      by_date_range: appointmentsByDateRange?.length || 0,
+      duty_appointments: dutyAppts.length,
+      duty_by_form_id: dutyByFormId,
+      duty_by_notes: dutyByNotes,
+      duty_by_new: dutyByNew,
+      pass_appointments: passAppts.length,
+      pass_by_form_id: passByFormId,
+      pass_by_notes: passByNotes,
+      pass_by_new: passByNew,
+      other_appointments: otherAppts.length
+    });
+    
+    // If we found duty appointments, log some details
+    if (dutyAppts.length > 0) {
+      console.log(`Sample duty appointments found:`, dutyAppts.slice(0, 3).map(apt => ({
+        id: apt.id,
+        form_id: apt.form_id,
+        notes: apt.notes,
+        start_date: apt.start_date,
+        exception_code: apt.exception_code
+      })));
+    } else {
+      console.warn(`⚠️ WARNING: No duty appointments found for form ${req.params.formId}!`);
+      // Try to find any duty appointments that might be related
+      try {
+        const { data: allDutyAppts, error: dutyErr } = await supabase
+          .from('soldier_appointments')
+          .select('id, form_id, notes, start_date, exception_code, created_at')
+          .eq('user_id', req.user.id)
+          .eq('exception_code', 'D')
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (!dutyErr && allDutyAppts && allDutyAppts.length > 0) {
+          console.log(`Recent duty appointments in system (for debugging):`, allDutyAppts.map(apt => ({
+            id: apt.id,
+            form_id: apt.form_id,
+            notes: apt.notes?.substring(0, 50),
+            start_date: apt.start_date,
+            created_at: apt.created_at
+          })));
+        }
+      } catch (debugErr) {
+        console.warn('Error in debug query for duty appointments:', debugErr);
+      }
+    }
+
+    res.json({ appointments: uniqueAppointments });
   } catch (error) {
     console.error('Error fetching appointments by form:', error);
-    res.status(500).json({ error: 'Failed to fetch appointments' });
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      stack: error.stack
+    });
+    
+    // Ensure we always send JSON, even on error
+    if (!res.headersSent) {
+      res.status(500).json({ 
+        error: 'Failed to fetch appointments',
+        message: error.message || 'Unknown error'
+      });
+    }
   }
 });
 
@@ -468,15 +785,136 @@ app.post('/api/appointments/bulk-delete', verifyAuth, async (req, res) => {
       return res.status(400).json({ error: 'appointmentIds must be a non-empty array' });
     }
 
-    // Verify all appointments belong to user and delete them
-    const { error } = await supabase
+    // First, fetch the appointments to verify they exist and belong to the user
+    const { data: appointmentsToDelete, error: fetchError } = await supabase
       .from('soldier_appointments')
-      .delete()
+      .select('id, soldier_id, start_date, end_date, exception_code, form_id, notes')
       .in('id', appointmentIds)
       .eq('user_id', req.user.id);
 
-    if (error) throw error;
-    res.json({ message: `Successfully deleted ${appointmentIds.length} appointment(s)` });
+    if (fetchError) throw fetchError;
+
+    if (!appointmentsToDelete || appointmentsToDelete.length === 0) {
+      return res.json({ 
+        message: 'No appointments found to delete',
+        deletedCount: 0,
+        deletedAppointments: []
+      });
+    }
+
+    // Log what we're about to delete
+    const dutyCount = appointmentsToDelete.filter(apt => apt.exception_code === 'D').length;
+    const passCount = appointmentsToDelete.filter(apt => apt.exception_code === 'P').length;
+    const otherCount = appointmentsToDelete.length - dutyCount - passCount;
+    
+    console.log(`[BULK DELETE] Deleting ${appointmentsToDelete.length} appointment(s):`, {
+      total: appointmentsToDelete.length,
+      duty: dutyCount,
+      pass: passCount,
+      other: otherCount,
+      appointmentIds: appointmentIds
+    });
+
+    // Delete the appointments (with retry logic for rate limits)
+    let deleteError = null;
+    let deleteAttempts = 0;
+    const maxDeleteAttempts = 3;
+    
+    while (deleteAttempts < maxDeleteAttempts) {
+      const { error: err } = await supabase
+        .from('soldier_appointments')
+        .delete()
+        .in('id', appointmentIds)
+        .eq('user_id', req.user.id);
+      
+      if (!err) {
+        deleteError = null;
+        break; // Success
+      }
+      
+      deleteAttempts++;
+      const isRateLimit = err.message?.toLowerCase().includes('rate limit') ||
+                         err.message?.toLowerCase().includes('too many requests') ||
+                         err.code === 'PGRST116' || // PostgREST rate limit error code
+                         err.code === '429';
+      
+      if (isRateLimit && deleteAttempts < maxDeleteAttempts) {
+        // Exponential backoff: wait 1s, 2s, 4s
+        const waitTime = Math.pow(2, deleteAttempts - 1) * 1000;
+        console.warn(`[BULK DELETE] Rate limit hit (attempt ${deleteAttempts}/${maxDeleteAttempts}), waiting ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        deleteError = err; // Will retry
+      } else {
+        deleteError = err;
+        break; // Not a rate limit or max attempts reached
+      }
+    }
+    
+    if (deleteError) {
+      console.error('[BULK DELETE] Failed to delete appointments after retries:', deleteError);
+      throw deleteError;
+    }
+
+    // Add a small delay to allow Supabase to process the deletion (helps avoid rate limits)
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Verify deletion by trying to fetch them again (with retry logic for rate limits)
+    let remainingAppointments = [];
+    let verifyAttempts = 0;
+    const maxVerifyAttempts = 3;
+    
+    while (verifyAttempts < maxVerifyAttempts) {
+      const { data: remaining, error: verifyError } = await supabase
+        .from('soldier_appointments')
+        .select('id')
+        .in('id', appointmentIds)
+        .eq('user_id', req.user.id);
+      
+      if (!verifyError) {
+        remainingAppointments = remaining || [];
+        break; // Success, exit retry loop
+      }
+      
+      verifyAttempts++;
+      const isRateLimit = verifyError.message?.toLowerCase().includes('rate limit') ||
+                         verifyError.message?.toLowerCase().includes('too many requests') ||
+                         verifyError.code === 'PGRST116' ||
+                         verifyError.code === '429';
+      
+      if (isRateLimit && verifyAttempts < maxVerifyAttempts) {
+        // Exponential backoff: wait 1s, 2s, 4s
+        const waitTime = Math.pow(2, verifyAttempts - 1) * 1000;
+        console.warn(`[BULK DELETE] Rate limit hit during verification (attempt ${verifyAttempts}/${maxVerifyAttempts}), waiting ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      } else {
+        // Not a rate limit, or max attempts reached
+        console.warn(`[BULK DELETE] Could not verify deletion (attempt ${verifyAttempts}/${maxVerifyAttempts}):`, verifyError);
+        if (!isRateLimit) {
+          // If it's not a rate limit, we should still check what we got
+          remainingAppointments = remaining || [];
+          break;
+        }
+      }
+    }
+    
+    if (remainingAppointments && remainingAppointments.length > 0) {
+      console.error(`[BULK DELETE] WARNING: ${remainingAppointments.length} appointment(s) were not deleted!`, {
+        remainingIds: remainingAppointments.map(apt => apt.id)
+      });
+      return res.status(500).json({ 
+        error: `Failed to delete all appointments. ${remainingAppointments.length} appointment(s) still exist.`,
+        deletedCount: appointmentsToDelete.length - remainingAppointments.length,
+        failedIds: remainingAppointments.map(apt => apt.id)
+      });
+    }
+
+    console.log(`[BULK DELETE] Successfully deleted ${appointmentsToDelete.length} appointment(s)`);
+    
+    res.json({ 
+      message: `Successfully deleted ${appointmentsToDelete.length} appointment(s)`,
+      deletedCount: appointmentsToDelete.length,
+      deletedAppointments: appointmentsToDelete
+    });
   } catch (error) {
     console.error('Error bulk deleting appointments:', error);
     res.status(500).json({ error: 'Failed to delete appointments' });

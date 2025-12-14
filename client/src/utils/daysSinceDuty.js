@@ -5,14 +5,14 @@
  */
 
 /**
- * Calculate days since last duty for a soldier based on completed forms and appointments
+ * Calculate days since last duty for a soldier based on all forms and appointments
  * @param {Object} soldier - Soldier object
- * @param {Array} completedForms - Array of completed DA6 forms
+ * @param {Array} allForms - Array of all DA6 forms (any status - pending, in_progress, ended)
  * @param {Array} appointments - Array of soldier appointments (including duties)
  * @param {Date} referenceDate - Date to calculate from (defaults to today)
  * @returns {number} Days since last duty
  */
-export const calculateDaysSinceLastDuty = (soldier, completedForms = [], appointments = [], referenceDate = null) => {
+export const calculateDaysSinceLastDuty = (soldier, allForms = [], appointments = [], referenceDate = null) => {
   const today = referenceDate || new Date();
   today.setHours(0, 0, 0, 0);
   
@@ -32,8 +32,8 @@ export const calculateDaysSinceLastDuty = (soldier, completedForms = [], appoint
     }
   });
   
-  // Check completed forms for duty assignments
-  completedForms.forEach(form => {
+  // Check all forms for duty assignments (any status - all forms are treated as real)
+  allForms.forEach(form => {
     if (!form.form_data || !form.form_data.selected_soldiers) return;
     
     // Check if soldier was in this form

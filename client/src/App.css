@@ -3,11 +3,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  background: var(--primary-gradient);
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .loading-spinner {
-  color: white;
+  color: var(--text-inverse);
   font-size: 1.2rem;
+  animation: pulse 2s ease-in-out infinite;
 }
 

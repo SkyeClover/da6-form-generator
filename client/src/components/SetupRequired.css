@@ -3,48 +3,52 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  background: var(--primary-gradient);
   padding: 2rem;
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .setup-card {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 12px;
   padding: 3rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-xl);
   max-width: 700px;
   width: 100%;
+  border: 1px solid var(--border-color);
+  animation: scaleIn var(--transition-base) ease-out;
 }
 
 .setup-card h1 {
-  color: #f44336;
+  color: var(--error);
   margin-bottom: 1rem;
   font-size: 2rem;
 }
 
 .setup-message {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 1.1rem;
   margin-bottom: 2rem;
   line-height: 1.6;
 }
 
 .setup-instructions {
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   padding: 1.5rem;
   border-radius: 8px;
   margin-top: 1.5rem;
+  border: 1px solid var(--border-color);
 }
 
 .setup-instructions h2 {
-  color: #1e3c72;
+  color: var(--primary);
   margin-bottom: 1rem;
   font-size: 1.3rem;
 }
 
 .setup-instructions ol {
   margin-left: 1.5rem;
-  color: #333;
+  color: var(--text-primary);
   line-height: 1.8;
 }
 
@@ -53,34 +57,36 @@
 }
 
 .setup-instructions code {
-  background: #e0e0e0;
+  background: var(--bg-hover);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: 'Courier New', monospace;
   font-size: 0.9em;
+  color: var(--text-primary);
 }
 
 .setup-instructions pre {
-  background: #2d2d2d;
-  color: #f8f8f2;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
   margin: 0.5rem 0;
   font-size: 0.9rem;
+  border: 1px solid var(--border-color);
 }
 
 .setup-note {
   margin-top: 1.5rem;
   padding: 1rem;
-  background: #e3f2fd;
-  border-left: 4px solid #2196f3;
+  background: var(--bg-tertiary);
+  border-left: 4px solid var(--info);
   border-radius: 4px;
-  color: #1976d2;
+  color: var(--info);
 }
 
 .setup-note code {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.2);
   padding: 2px 6px;
   border-radius: 4px;
 }

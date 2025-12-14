@@ -122,6 +122,71 @@ const Settings = () => {
           <h2>Settings</h2>
         </div>
 
+        {/* Project Information Section */}
+        <div className="settings-section project-info-section">
+          <div className="section-header">
+            <h3>About DA6 Form Generator</h3>
+          </div>
+          
+          <div className="project-info-content">
+            <div className="project-status">
+              <div className="status-badge live">✅ Live & Deployed</div>
+              <p className="project-description">
+                A modern web application that automates and streamlines the entire DA6 Duty Roster creation process. 
+                Built specifically for Army personnel who need to generate compliant, properly formatted duty rosters quickly and accurately.
+              </p>
+            </div>
+
+            <div className="project-details-grid">
+              <div className="project-detail-card">
+                <h4>🌐 Live Application</h4>
+                <p><strong>Production URL:</strong></p>
+                <a 
+                  href="https://da6-form-generator.vercel.app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="project-link"
+                >
+                  da6-form-generator.vercel.app
+                </a>
+              </div>
+
+              <div className="project-detail-card">
+                <h4>🛠️ Tech Stack</h4>
+                <ul className="tech-list">
+                  <li><strong>Frontend:</strong> React 18 + React Router</li>
+                  <li><strong>Backend:</strong> Node.js + Express (Vercel Serverless)</li>
+                  <li><strong>Database:</strong> Supabase (PostgreSQL)</li>
+                  <li><strong>Auth:</strong> Google OAuth</li>
+                  <li><strong>Hosting:</strong> Vercel</li>
+                </ul>
+              </div>
+
+              <div className="project-detail-card">
+                <h4>✨ Recent Updates</h4>
+                <ul className="updates-list">
+                  <li>🌓 Dark mode / Light mode support</li>
+                  <li>🎨 Modern UI with smooth animations</li>
+                  <li>⚡ Enhanced user experience</li>
+                  <li>🎯 Improved visual feedback</li>
+                </ul>
+              </div>
+
+              <div className="project-detail-card">
+                <h4>📊 Current Features</h4>
+                <ul className="features-list">
+                  <li>✅ Intelligent duty assignment</li>
+                  <li>✅ Cross-roster conflict detection</li>
+                  <li>✅ Soldier management & profiles</li>
+                  <li>✅ Holiday & appointment tracking</li>
+                  <li>✅ Duty templates (CQ, SD, CORP)</li>
+                  <li>✅ Rank-aware sorting</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Help & Support Section */}
         <div className="settings-section help-section">
           <div className="section-header">

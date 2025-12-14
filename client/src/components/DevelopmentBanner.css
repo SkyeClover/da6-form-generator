@@ -2,11 +2,37 @@
   background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
   color: white;
   padding: 0.75rem 1rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   position: sticky;
   top: 0;
   z-index: 101;
   width: 100%;
+  animation: slideDown var(--transition-base) ease-out;
+  max-height: 200px;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out, padding 0.3s ease-out, margin 0.3s ease-out, opacity 0.3s ease-out, border 0.3s ease-out;
+  box-sizing: border-box;
+  display: block;
+  flex-shrink: 0;
+}
+
+.development-banner.dismissing {
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin: 0 !important;
+  opacity: 0;
+  box-shadow: none;
+  border: none;
+  overflow: hidden;
+  min-height: 0 !important;
+  height: 0 !important;
+}
+
+.development-banner.dismissing .development-banner-content {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 }
 
 .development-banner-content {
@@ -15,6 +41,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  position: relative;
 }
 
 .development-banner-icon {
@@ -36,11 +63,39 @@
   color: white;
   text-decoration: underline;
   font-weight: 500;
-  transition: opacity 0.2s;
+  transition: opacity var(--transition-fast);
 }
 
 .development-banner-link:hover {
   opacity: 0.8;
+}
+
+.development-banner-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--transition-base);
+  padding: 0;
+  font-weight: 300;
+}
+
+.development-banner-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.development-banner-close:active {
+  transform: scale(0.95);
 }
 
 @media (max-width: 768px) {
@@ -54,6 +109,12 @@
 
   .development-banner-icon {
     font-size: 1rem;
+  }
+
+  .development-banner-close {
+    width: 24px;
+    height: 24px;
+    font-size: 1.25rem;
   }
 }
 

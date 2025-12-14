@@ -4,13 +4,14 @@ import { getExceptionCodesList } from '../utils/exceptionCodes';
 import Tooltip from './Tooltip';
 import './SoldierProfile.css';
 
-const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
+const SoldierProfile = ({ soldier, onClose, onUpdate, onEditDetails }) => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAppointmentForm, setShowAppointmentForm] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [editingDaysSinceDuty, setEditingDaysSinceDuty] = useState(false);
   const [daysSinceDuty, setDaysSinceDuty] = useState(soldier?.days_since_last_duty || 0);
+  const [selectedAppointments, setSelectedAppointments] = useState(new Set());
   const [appointmentForm, setAppointmentForm] = useState({
     start_date: '',
     end_date: '',
@@ -89,6 +90,47 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
     }
   };
 
+  // Appointment selection handlers
+  const handleSelectAllAppointments = () => {
+    if (selectedAppointments.size === appointments.length) {
+      setSelectedAppointments(new Set());
+    } else {
+      setSelectedAppointments(new Set(appointments.map(a => a.id)));
+    }
+  };
+
+  const handleSelectAppointment = (id) => {
+    const newSelected = new Set(selectedAppointments);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedAppointments(newSelected);
+  };
+
+  const handleBulkDeleteAppointments = async () => {
+    if (selectedAppointments.size === 0) return;
+    
+    const count = selectedAppointments.size;
+    if (!window.confirm(`Are you sure you want to delete ${count} selected appointment(s)? This action cannot be undone.`)) return;
+    
+    try {
+      const deletePromises = Array.from(selectedAppointments).map(id =>
+        apiClient.delete(`/soldiers/${soldier.id}/appointments/${id}`)
+      );
+      
+      await Promise.all(deletePromises);
+      setSelectedAppointments(new Set());
+      fetchAppointments();
+      if (onUpdate) onUpdate();
+      alert(`Successfully deleted ${count} appointment(s).`);
+    } catch (error) {
+      console.error('Error bulk deleting appointments:', error);
+      alert('Error deleting appointments. Please try again.');
+    }
+  };
+
   const handleSaveDaysSinceDuty = async () => {
     try {
       await apiClient.put(`/soldiers/${soldier.id}`, {
@@ -136,7 +178,21 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
           <h2>
             {soldier.rank} {soldier.first_name} {soldier.middle_initial} {soldier.last_name}
           </h2>
-          <button className="close-button" onClick={onClose}>×</button>
+          <div className="profile-header-actions">
+            {onEditDetails && (
+              <button 
+                className="btn-edit-details"
+                onClick={() => {
+                  onEditDetails();
+                  onClose();
+                }}
+                title="Edit soldier details"
+              >
+                Edit Details
+              </button>
+            )}
+            <button className="close-button" onClick={onClose}>×</button>
+          </div>
         </div>
 
         <div className="profile-sections">
@@ -201,7 +257,26 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
 
           <div className="profile-section">
             <div className="section-header">
+              <div className="section-header-left">
               <h3>Appointments & Unavailability</h3>
+                {appointments.length > 0 && (
+                  <label className="select-all-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedAppointments.size === appointments.length && appointments.length > 0}
+                      ref={input => {
+                        if (input) {
+                          input.indeterminate = selectedAppointments.size > 0 && selectedAppointments.size < appointments.length;
+                        }
+                      }}
+                      onChange={handleSelectAllAppointments}
+                      className="checkbox-input"
+                      title={selectedAppointments.size === appointments.length ? 'Deselect all' : 'Select all'}
+                    />
+                    <span>Select All</span>
+                  </label>
+                )}
+              </div>
               <button 
                 className="btn-primary-small"
                 onClick={() => {
@@ -219,6 +294,30 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
                 + Add Appointment
               </button>
             </div>
+
+            {/* Bulk Actions Toolbar for Appointments */}
+            {selectedAppointments.size > 0 && (
+              <div className="appointments-bulk-actions">
+                <div className="bulk-actions-info">
+                  <span className="selected-count">{selectedAppointments.size}</span>
+                  <span>appointment{selectedAppointments.size !== 1 ? 's' : ''} selected</span>
+                </div>
+                <div className="bulk-actions-buttons">
+                  <button
+                    className="btn-bulk-delete-appointments"
+                    onClick={handleBulkDeleteAppointments}
+                  >
+                    Delete Selected
+                  </button>
+                  <button
+                    className="btn-bulk-clear-appointments"
+                    onClick={() => setSelectedAppointments(new Set())}
+                  >
+                    Clear Selection
+                  </button>
+                </div>
+              </div>
+            )}
 
             {showAppointmentForm && (
               <div className="appointment-form-card">
@@ -306,8 +405,23 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
               </div>
             ) : (
               <div className="appointments-list">
-                {appointments.map(appointment => (
-                  <div key={appointment.id} className="appointment-card">
+                {appointments.map(appointment => {
+                  const isSelected = selectedAppointments.has(appointment.id);
+                  return (
+                    <div 
+                      key={appointment.id} 
+                      className={`appointment-card ${isSelected ? 'appointment-selected' : ''}`}
+                    >
+                      <div className="appointment-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectAppointment(appointment.id)}
+                          className="checkbox-input"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="appointment-content">
                     <div className="appointment-header">
                       <div>
                         <strong>{appointment.reason}</strong>
@@ -341,7 +455,9 @@ const SoldierProfile = ({ soldier, onClose, onUpdate }) => {
                       </div>
                     )}
                   </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

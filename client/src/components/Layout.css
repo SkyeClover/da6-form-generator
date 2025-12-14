@@ -2,17 +2,30 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #f5f5f5;
+  background-color: var(--bg-primary);
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .layout-header {
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-  color: white;
+  background: var(--primary-gradient);
+  color: var(--text-inverse);
   padding: 1rem 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   position: sticky;
-  top: 3.5rem;
+  top: 0;
   z-index: 100;
+  animation: slideIn var(--transition-base) ease-out;
+  transition: top 0.3s ease-out;
+}
+
+/* When banner is visible, position header below it */
+.layout:not(.banner-dismissed) .layout-header {
+  top: 3.5rem; /* Banner height: ~0.75rem padding top + ~1.5rem content + ~0.75rem padding bottom + some margin */
+}
+
+/* When banner is dismissed, header moves to top */
+.layout.banner-dismissed .layout-header {
+  top: 0;
 }
 
 .header-content {
@@ -27,7 +40,12 @@
 
 .logo {
   text-decoration: none;
-  color: white;
+  color: var(--text-inverse);
+  transition: transform var(--transition-fast);
+}
+
+.logo:hover {
+  transform: scale(1.05);
 }
 
 .logo h1 {
@@ -48,18 +66,37 @@
   text-decoration: none;
   padding: 0.5rem 1rem;
   border-radius: 6px;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
   font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-link::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: left var(--transition-base);
+}
+
+.nav-link:hover::before {
+  left: 0;
 }
 
 .nav-link:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: white;
+  color: var(--text-inverse);
+  transform: translateY(-2px);
 }
 
 .nav-link.active {
   background: rgba(255, 255, 255, 0.2);
-  color: white;
+  color: var(--text-inverse);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .user-menu {
@@ -68,9 +105,32 @@
   gap: 1rem;
 }
 
+.theme-toggle {
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: var(--text-inverse);
+  cursor: pointer;
+  font-size: 1.2rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-base);
+  animation: scaleIn var(--transition-fast) ease-out;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(15deg) scale(1.1);
+}
+
 .user-email {
   font-size: 0.9rem;
   opacity: 0.9;
+  color: var(--text-inverse);
 }
 
 .sign-out-button {
@@ -78,35 +138,81 @@
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 6px;
-  color: white;
+  color: var(--text-inverse);
   cursor: pointer;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
+  font-weight: 500;
 }
 
 .sign-out-button:hover {
   background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .layout-main {
   flex: 1;
   padding: 0;
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;
     gap: 1rem;
+    padding: 0 1rem;
+  }
+
+  .logo h1 {
+    font-size: 1.25rem;
   }
 
   .main-nav {
     width: 100%;
     justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .nav-link {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.9rem;
   }
 
   .user-menu {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .user-email {
+    font-size: 0.8rem;
+    word-break: break-all;
+  }
+
+  .sign-out-button {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-content {
+    padding: 0 0.75rem;
+  }
+
+  .logo h1 {
+    font-size: 1.1rem;
+  }
+
+  .main-nav {
+    gap: 0.25rem;
+  }
+
+  .nav-link {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85rem;
   }
 }
 
