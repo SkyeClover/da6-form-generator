@@ -534,7 +534,9 @@ const MasterRoster = () => {
                                       }
                                       
                                       if (exceptionCode && exceptionCode !== 'A') {
-                                        const exceptionName = getExceptionCodeName(exceptionCode);
+                                        let exceptionName = getExceptionCodeName(exceptionCode);
+                                        // Remove "(Already assigned)" from exception names in master roster view
+                                        exceptionName = exceptionName.replace(/\s*\(Already assigned\)/gi, '');
                                         tooltipText += ` - ${exceptionName}`;
                                       }
                                       if (assignment.notes && !assignment.notes.includes('DA6_FORM')) {
@@ -543,7 +545,11 @@ const MasterRoster = () => {
                                     } else if (isDuty) {
                                       tooltipText = `${dutyName} - Duty Assignment`;
                                     } else if (exceptionCode) {
-                                      const exceptionName = getExceptionCodeName(exceptionCode);
+                                      let exceptionName = getExceptionCodeName(exceptionCode);
+                                      // Remove "(Already assigned)" from exception names in master roster view
+                                      // We only want to show the duty/exception type, not the cross-roster checking message
+                                      exceptionName = exceptionName.replace(/\s*\(Already assigned\)/gi, '');
+                                      
                                       if (exceptionCode === 'P') {
                                         tooltipText = `${dutyName} - Pass (Days off after duty)`;
                                       } else {

@@ -10,6 +10,7 @@ const Layout = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [bannerVisible, setBannerVisible] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     // Check if banner should be visible
@@ -26,9 +27,28 @@ const Layout = ({ children }) => {
   }, []);
 
   const handleSignOut = async () => {
-    const { error } = await signOut();
-    if (error) {
-      console.error('Error signing out:', error);
+    // Prevent multiple simultaneous sign-out attempts
+    if (isSigningOut) {
+      return;
+    }
+    
+    setIsSigningOut(true);
+    try {
+      const { error } = await signOut();
+      // Only log errors that aren't about missing sessions (which is fine)
+      if (error && error.message && !error.message.includes('session missing')) {
+        console.error('Error signing out:', error);
+      }
+      // Redirect to login page after sign out (regardless of error)
+      window.location.href = '/login';
+    } catch (error) {
+      // If signOut throws, still redirect to login
+      if (error.message && !error.message.includes('session missing')) {
+        console.error('Error signing out:', error);
+      }
+      window.location.href = '/login';
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -79,8 +99,12 @@ const Layout = ({ children }) => {
               {theme === 'light' ? '🌙' : '☀️'}
             </button>
             <span className="user-email">{user?.email}</span>
-            <button onClick={handleSignOut} className="sign-out-button">
-              Sign Out
+            <button 
+              onClick={handleSignOut} 
+              className="sign-out-button"
+              disabled={isSigningOut}
+            >
+              {isSigningOut ? 'Signing Out...' : 'Sign Out'}
             </button>
           </div>
         </div>

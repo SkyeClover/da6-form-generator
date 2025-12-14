@@ -14,11 +14,27 @@ import { calculateDaysSinceLastDuty } from './daysSinceDuty';
  * @returns {Array<Date>} Array of dates
  */
 export const getDatesInRange = (startDate, endDate) => {
-  // Normalize dates to local midnight to prevent timezone shifts
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
+  // Parse dates properly to avoid timezone issues
+  // If it's a string in YYYY-MM-DD format, parse it as local date
+  let start, end;
+  
+  if (typeof startDate === 'string' && startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // Parse YYYY-MM-DD string as local date (not UTC)
+    const [year, month, day] = startDate.split('-').map(Number);
+    start = new Date(year, month - 1, day, 0, 0, 0, 0);
+  } else {
+    start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+  }
+  
+  if (typeof endDate === 'string' && endDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // Parse YYYY-MM-DD string as local date (not UTC)
+    const [year, month, day] = endDate.split('-').map(Number);
+    end = new Date(year, month - 1, day, 0, 0, 0, 0);
+  } else {
+    end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+  }
   
   const dates = [];
   const current = new Date(start);
@@ -68,7 +84,7 @@ const getExceptionCodeFromAppointment = (appointment) => {
  * @param {string} dutyName - Name of the duty
  * @returns {string} Exception code (abbreviation of duty name)
  */
-const getCrossRosterExceptionCode = (dutyName) => {
+export const getCrossRosterExceptionCode = (dutyName) => {
   if (!dutyName) return 'D';
   
   // Remove common words and clean up
@@ -488,6 +504,26 @@ export const generateRoster = (formData, soldiers, appointments, otherForms = []
             .map(a => a.soldier_id)
         );
         availableSoldiers = availableSoldiers.filter(soldier => !assignedOnDate.has(soldier.id));
+        
+        // CRITICAL: Filter out soldiers with 0 days since last duty (unless no other soldiers available)
+        // Soldiers with 0 days just had duty and shouldn't be assigned again
+        // However, if ALL available soldiers have 0 days, we'll still assign (edge case)
+        const soldiersWithDays = availableSoldiers.filter(soldier => {
+          const days = daysSinceLastDutyBySoldier[soldier.id];
+          if (days === undefined || days === null) {
+            // Calculate if not yet tracked
+            const calculatedDays = calculateDaysSinceLastDuty(soldier, allRelevantForms, appointments, date) || 0;
+            daysSinceLastDutyBySoldier[soldier.id] = calculatedDays;
+            return calculatedDays > 0;
+          }
+          return days > 0;
+        });
+        
+        // Only use soldiers with days > 0 if there are any available
+        // Otherwise, fall back to all available soldiers (edge case where all have 0 days)
+        if (soldiersWithDays.length > 0) {
+          availableSoldiers = soldiersWithDays;
+        }
         
         // Sort by priority - use current days since last duty from our tracking
         // CRITICAL: Use daysSinceLastDutyBySoldier which is updated dynamically as we assign duties

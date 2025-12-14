@@ -84,12 +84,27 @@ export const AuthProvider = ({ children }) => {
     if (!isSupabaseConfigured()) {
       return { error: new Error('Supabase is not configured') };
     }
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
-      setUser(null);
-      setSession(null);
+    
+    // Clear local state first
+    setUser(null);
+    setSession(null);
+    
+    // Try to sign out from Supabase, but don't treat "no session" as an error
+    try {
+      const { error } = await supabase.auth.signOut();
+      // If the error is about missing session, it's fine - we're already signed out
+      if (error && error.message && !error.message.includes('session missing')) {
+        return { error };
+      }
+      return { error: null };
+    } catch (error) {
+      // If signOut throws an error (like session missing), that's okay
+      // We've already cleared the local state
+      if (error.message && error.message.includes('session missing')) {
+        return { error: null };
+      }
+      return { error };
     }
-    return { error };
   };
 
   const value = {

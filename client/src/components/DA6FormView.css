@@ -255,6 +255,14 @@
   border-color: var(--error);
 }
 
+.assignment-cell.cross-roster-duty {
+  background: rgba(239, 68, 68, 0.3);
+  font-weight: 700;
+  color: var(--error);
+  border-color: var(--error);
+  border-width: 2px;
+}
+
 .assignment-cell.pass-cell {
   background: rgba(16, 185, 129, 0.2);
   color: var(--success);
